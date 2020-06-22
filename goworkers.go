@@ -11,10 +11,13 @@ import (
 )
 
 const (
+	// Time after which a worker will be killed if inactive
 	DEFAULT_TIMEOUT = 10
+	// Number of initial workers spawned if unspecified
 	DEFAULT_WORKERS = 2
-	MAX_WORKERS     = 128
-	MAXQ            = 100
+	// The size of the buffered queue where jobs are queued up if no
+	// workers are available to process the incoming jobs, unless specified
+	DEFAULT_QSIZE = 100
 )
 
 var (
@@ -40,17 +43,20 @@ type GoWorkers struct {
 
 // Options to configure the behaviour of worker pool.
 // Timeout specifies the time after which an idle worker goroutine will be killed.
-// Default timeout is 10 seconds.
+// Default timeout is DEFAULT_TIMEOUT seconds.
 // Workers specifies the number of workers that will be spawned.
-// Default number of workers is 2.
+// Default number of workers is DEFAULT_WORKERS.
 // Logs accepts log levels - 0 (default), 1, 2
 // Log level 0: Only error logs.
 // Log level 1: Only info and error logs.
 // Log level 2: Error, info and debug logs. (badly verbose)
+// QSize specifies the size of the queue that holds up incoming jobs.
+// Minimum value is DEFAULT_QSIZE
 type GoWorkersOptions struct {
 	Timeout uint32
 	Workers uint32
 	Logs    uint8
+	QSize   uint32
 }
 
 func init() {
@@ -65,12 +71,12 @@ func New(args ...GoWorkersOptions) *GoWorkers {
 	gw := &GoWorkers{
 		workerQ:   make(chan func()),
 		jobQ:      make(chan func()),
-		bufferedQ: make(chan func(), MAXQ),
 		terminate: make(chan struct{}),
 	}
 
 	gw.maxWorkers = DEFAULT_WORKERS
 	gw.timeout = time.Second * DEFAULT_TIMEOUT
+	gw.bufferedQ = make(chan func(), DEFAULT_QSIZE)
 	if len(args) == 1 {
 		if args[0].Workers > DEFAULT_WORKERS {
 			gw.maxWorkers = args[0].Workers
@@ -83,6 +89,9 @@ func New(args ...GoWorkersOptions) *GoWorkers {
 		} else if args[0].Logs == 2 {
 			Info.SetOutput(os.Stdout)
 			Debug.SetOutput(os.Stdout)
+		}
+		if args[0].QSize > DEFAULT_QSIZE {
+			gw.bufferedQ = make(chan func(), args[0].QSize)
 		}
 	}
 
