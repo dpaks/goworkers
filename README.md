@@ -1,4 +1,6 @@
 # GoWorkers
+[![CircleCI](https://circleci.com/gh/dpaks/goworkers.svg?style=shield)](https://app.circleci.com/pipelines/github/dpaks/goworkers)
+[![Codecov](https://codecov.io/gh/dpaks/goworkers/branch/master/graph/badge.svg)](https://codecov.io/gh/dpaks/goworkers)
 
 A minimal and efficient workerpool implementation in Go using goroutines.
 > This project is just in alpha phase. Work commenced on 21-06-2020.

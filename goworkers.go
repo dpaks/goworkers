@@ -27,6 +27,7 @@ var (
 )
 
 // GoWorkers is a collection of worker goroutines.
+//
 // Idle workers will be timed out. At minimum, 2 workers will be spawned.
 type GoWorkers struct {
 	numWorkers uint32
@@ -42,16 +43,26 @@ type GoWorkers struct {
 }
 
 // Options to configure the behaviour of worker pool.
+//
 // Timeout specifies the time after which an idle worker goroutine will be killed.
+//
 // Default timeout is DEFAULT_TIMEOUT seconds.
+//
 // Workers specifies the number of workers that will be spawned.
+//
 // Default number of workers is DEFAULT_WORKERS.
-// Logs accepts log levels - 0 (default), 1, 2
+//
+// Logs accepts log levels - 0 (default), 1, 2.
+//
 // Log level 0: Only error logs.
+//
 // Log level 1: Only info and error logs.
-// Log level 2: Error, info and debug logs. (badly verbose)
+//
+// Log level 2: Error, info and debug logs (badly verbose).
+//
 // QSize specifies the size of the queue that holds up incoming jobs.
-// Minimum value is DEFAULT_QSIZE
+//
+// Minimum value is DEFAULT_QSIZE.
 type GoWorkersOptions struct {
 	Timeout uint32
 	Workers uint32
@@ -66,6 +77,7 @@ func init() {
 }
 
 // Creates a new worker pool.
+//
 // Accepts optional GoWorkersOptions{} argument.
 func New(args ...GoWorkersOptions) *GoWorkers {
 	gw := &GoWorkers{
@@ -135,6 +147,7 @@ func msleep(n int) {
 }
 
 // Gracefully waits for jobs to finish running.
+//
 // This is a non-blocking call and returns when all the active and queued jobs are finished.
 func (gw *GoWorkers) Stop() {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
