@@ -1,7 +1,8 @@
-package main
+// Package goworkers implements a simple, flexible and lightweight
+// goroutine worker pool implementation.
+package goworkers
 
 import (
-	"fmt"
 	"log"
 	"sync/atomic"
 	"time"
@@ -10,10 +11,12 @@ import (
 const (
 	DEFAULT_TIMEOUT = 10
 	DEFAULT_WORKERS = 2
-	MAX_WORKERS = 128
+	MAX_WORKERS     = 128
 	MAXQ            = 100
 )
 
+// GoWorkers is a collection of worker goroutines.
+// Idle workers will be timed out. At minimum, 2 workers will be spawned.
 type GoWorkers struct {
 	numWorkers uint32
 	maxWorkers uint32
@@ -27,29 +30,40 @@ type GoWorkers struct {
 	stopping   int32
 }
 
+// Options to configure the behaviour of worker pool.
+// Timeout specifies the time after which an idle worker goroutine will be killed.
+// Default timeout is 10 seconds.
+// Workers specifies the number of workers that will be spawned.
+// Default number of workers is 2.
+type GoWorkersOptions struct {
+	Timeout uint32
+	Workers uint32
+}
+
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetPrefix("GoWorkers:")
 }
 
-// Creates a new worker pool with the specified number of worker
-// goroutines. Minimum workers is 2.
-func New(args ...int) *GoWorkers {
+// Creates a new worker pool.
+// Accepts optional GoWorkersOptions{} argument.
+func New(args ...GoWorkersOptions) *GoWorkers {
 	gw := &GoWorkers{
 		workerQ:   make(chan func()),
 		jobQ:      make(chan func()),
 		bufferedQ: make(chan func(), MAXQ),
 		terminate: make(chan struct{}),
 	}
+
 	gw.maxWorkers = DEFAULT_WORKERS
 	gw.timeout = time.Second * DEFAULT_TIMEOUT
-	if len(args) == 1 && args[0] > 2 {
-		gw.maxWorkers = uint32(args[0])
-		log.Printf("DEBUG: %+v\n", *gw)
-	}
-	if len(args) == 2 && args[1] == 0 {
-		gw.timeout = time.Second * DEFAULT_TIMEOUT
-		log.Printf("DEBUG: %+v\n", *gw)
+	if len(args) == 1 {
+		if args[0].Workers > DEFAULT_WORKERS {
+			gw.maxWorkers = args[0].Workers
+		}
+		if args[0].Timeout > DEFAULT_TIMEOUT {
+			gw.timeout = time.Second * time.Duration(args[0].Timeout)
+		}
 	}
 
 	go gw.start()
@@ -77,6 +91,7 @@ func (gw *GoWorkers) MaxWorkerNum() uint32 {
 	return atomic.LoadUint32(&gw.maxWorkers)
 }
 
+// Non-blocking call to submit jobs of type job()
 func (gw *GoWorkers) Submit(job func()) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
 		log.Println("Cannot accept jobs - Shutting down the go workers!")
@@ -90,6 +105,8 @@ func sleep(n int) {
 	time.Sleep(time.Duration(n) * time.Second)
 }
 
+// Gracefully waits for jobs to finish running.
+// This is a non-blocking call and returns when all the active and queued jobs are finished.
 func (gw *GoWorkers) Stop() {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
 		log.Println("Stop already triggered")
@@ -106,12 +123,10 @@ func (gw *GoWorkers) Stop() {
 
 func (gw *GoWorkers) wait() bool {
 	if atomic.LoadInt32(&gw.stopping) == 0 {
-		log.Printf("DEBUG: %+v\n", *gw)
 		if gw.JobNum() != 0 || gw.QueuedJobNum() != 0 {
 			log.Printf("Cannot stop. Active Jobs = %d, Queued Jobs = %d\n", gw.JobNum(), gw.QueuedJobNum())
 			return false
 		}
-		log.Printf("DEBUG: %+v\n", *gw)
 		gw.terminate <- struct{}{}
 		close(gw.jobQ)
 	} else if gw.JobNum() == 0 && gw.QueuedJobNum() == 0 {
@@ -131,7 +146,6 @@ func (gw *GoWorkers) start() {
 				continue
 			}
 			gw.bufferedQ <- job
-
 		}
 
 		select {
@@ -146,10 +160,9 @@ func (gw *GoWorkers) start() {
 				}
 				gw.workerQ <- job
 				// Move job to active before removing from queue
-				// There shouldn't be a situation where the job is neither in active or queue state
+				// There shouldn't be a situation where the job is neither in active nor in queue state
 				atomic.AddUint32(&gw.numJobs, uint32(1))
 				atomic.AddUint32(&gw.qnumJobs, ^uint32(0))
-				log.Printf("DEBUG: %+v\n", *gw)
 			}(job)
 		}
 	}
@@ -181,22 +194,8 @@ func (gw *GoWorkers) startWorker() {
 		case <-timer.C:
 			if (gw.JobNum() + gw.QueuedJobNum()) < gw.WorkerNum() {
 				log.Println("Timed out - killing self!")
-				log.Printf("DEBUG: %+v\n", *gw)
 				return
 			}
 		}
 	}
-}
-
-func main() {
-	gw := New(20)
-
-	gw.Submit(func() { fmt.Println("JOB START 9"); time.Sleep(9 * time.Second); fmt.Println("JOB END 9") })
-	gw.Submit(func() { fmt.Println("JOB START 7"); time.Sleep(7 * time.Second); fmt.Println("JOB END 7") })
-	gw.Submit(func() { fmt.Println("JOB START 1"); time.Sleep(1 * time.Second); fmt.Println("JOB END 1") })
-	gw.Submit(func() { fmt.Println("JOB START 2"); time.Sleep(2 * time.Second); fmt.Println("JOB END 2") })
-	gw.Submit(func() { fmt.Println("JOB START 3"); time.Sleep(3 * time.Second); fmt.Println("JOB END 3") })
-	log.Println("SUBMITTED")
-	gw.Stop()
-	//sleep(10)
 }
