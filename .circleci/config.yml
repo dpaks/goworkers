@@ -11,10 +11,4 @@ jobs:
       - checkout
       - run: go get -v -t -d ./...
       - run: go test -v ./...
-  test:
-    pre:
-      - go get github.com/mattn/goveralls
-    override:
-      - go test -v -coverprofile=coverage.out
-    post:
-      - goveralls -coverprofile=coverage.out -service=circle-ci -repotoken=$CODECOV_TOKEN
+      - run: bash <(curl -s https://codecov.io/bash)
