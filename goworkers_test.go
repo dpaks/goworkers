@@ -12,12 +12,19 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 
 	gw := New()
 
-	gw.Submit(func() { fmt.Println("JOB START 9"); time.Sleep(9 * time.Second); fmt.Println("JOB END 9") })
-	gw.Submit(func() { fmt.Println("JOB START 7"); time.Sleep(7 * time.Second); fmt.Println("JOB END 7") })
-	gw.Submit(func() { fmt.Println("JOB START 1"); time.Sleep(1 * time.Second); fmt.Println("JOB END 1") })
-	gw.Submit(func() { fmt.Println("JOB START 2"); time.Sleep(2 * time.Second); fmt.Println("JOB END 2") })
-	gw.Submit(func() { fmt.Println("JOB START 3"); time.Sleep(3 * time.Second); fmt.Println("JOB END 3") })
-	log.Println("SUBMITTED")
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{9, 7, 1, 2, 3} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
 
 	gw.Stop()
 
@@ -33,15 +40,22 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 func TestFunctionalityWithArgs(t *testing.T) {
 	tStart := time.Now()
 
-	opts := GoWorkersOptions{Workers: 3, Logs: 1}
+	opts := Options{Workers: 3, Logs: 1}
 	gw := New(opts)
 
-	gw.Submit(func() { fmt.Println("JOB START 9"); time.Sleep(9 * time.Second); fmt.Println("JOB END 9") })
-	gw.Submit(func() { fmt.Println("JOB START 7"); time.Sleep(7 * time.Second); fmt.Println("JOB END 7") })
-	gw.Submit(func() { fmt.Println("JOB START 1"); time.Sleep(1 * time.Second); fmt.Println("JOB END 1") })
-	gw.Submit(func() { fmt.Println("JOB START 2"); time.Sleep(2 * time.Second); fmt.Println("JOB END 2") })
-	gw.Submit(func() { fmt.Println("JOB START 3"); time.Sleep(3 * time.Second); fmt.Println("JOB END 3") })
-	log.Println("SUBMITTED")
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{9, 7, 1, 2, 3} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
 
 	gw.Stop()
 
@@ -64,7 +78,7 @@ func TestArgs(t *testing.T) {
 	}
 
 	for _, table := range tables {
-		opts := GoWorkersOptions{Workers: table.Given}
+		opts := Options{Workers: table.Given}
 		gw := New(opts)
 
 		if gw.MaxWorkerNum() != table.Expected {
@@ -76,21 +90,75 @@ func TestArgs(t *testing.T) {
 func Example() {
 	gw := New()
 
-	gw.Submit(func() { fmt.Println("JOB START 9"); time.Sleep(9 * time.Second); fmt.Println("JOB END 9") })
-	gw.Submit(func() { fmt.Println("JOB START 7"); time.Sleep(7 * time.Second); fmt.Println("JOB END 7") })
-	gw.Submit(func() { fmt.Println("JOB START 1"); time.Sleep(1 * time.Second); fmt.Println("JOB END 1") })
-	gw.Submit(func() { fmt.Println("JOB START 2"); time.Sleep(2 * time.Second); fmt.Println("JOB END 2") })
-	gw.Submit(func() { fmt.Println("JOB START 3"); time.Sleep(3 * time.Second); fmt.Println("JOB END 3") })
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, i := range []int{9, 7, 1, 2, 3} {
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+
 	log.Println("SUBMITTED")
 
 	gw.Stop()
 }
 
-func ExampleNew_withoutargs() {
+func Example_withArgs() {
+	opts := Options{Workers: 3, Logs: 2, Timeout: 10, QSize: 256}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{9, 7, 1, 2, 3} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+}
+
+func Example_simple() {
+	gw := New()
+
+	gw.Submit(func() {
+		fmt.Println("Hello, how are you?")
+	})
+
+	gw.Submit(func() {
+		fmt.Println("I'm fine, thank you!")
+	})
+
+	log.Println("SUBMITTED")
+
+	gw.Stop()
+}
+
+func ExampleNew_withoutArgs() {
 	_ = New()
 }
 
-func ExampleNew_withargs() {
-	opts := GoWorkersOptions{Workers: 3, Logs: 1, Timeout: 20, QSize: 256}
+func ExampleNew_withArgs() {
+	opts := Options{Workers: 3, Logs: 1, Timeout: 20, QSize: 256}
 	_ = New(opts)
+}
+
+func ExampleGoWorkers_Submit() {
+	gw := New()
+
+	gw.Submit(func() {
+		fmt.Println("Hello, how are you?")
+	})
+
+	gw.Stop()
 }
