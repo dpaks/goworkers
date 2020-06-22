@@ -1,3 +1,3 @@
-module github.com/dpaks/GoWorkers
+module github.com/dpaks/goworkers
 
 go 1.14

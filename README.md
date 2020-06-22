@@ -37,7 +37,7 @@ func main() {
 }
 ```
 
-###### With arguments
+###### Without arguments
 ```go
 package main
 
