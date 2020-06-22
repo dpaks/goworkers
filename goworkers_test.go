@@ -72,3 +72,25 @@ func TestArgs(t *testing.T) {
 		}
 	}
 }
+
+func Example() {
+	gw := New()
+
+	gw.Submit(func() { fmt.Println("JOB START 9"); time.Sleep(9 * time.Second); fmt.Println("JOB END 9") })
+	gw.Submit(func() { fmt.Println("JOB START 7"); time.Sleep(7 * time.Second); fmt.Println("JOB END 7") })
+	gw.Submit(func() { fmt.Println("JOB START 1"); time.Sleep(1 * time.Second); fmt.Println("JOB END 1") })
+	gw.Submit(func() { fmt.Println("JOB START 2"); time.Sleep(2 * time.Second); fmt.Println("JOB END 2") })
+	gw.Submit(func() { fmt.Println("JOB START 3"); time.Sleep(3 * time.Second); fmt.Println("JOB END 3") })
+	log.Println("SUBMITTED")
+
+	gw.Stop()
+}
+
+func ExampleNew_withoutargs() {
+	_ = New()
+}
+
+func ExampleNew_withargs() {
+	opts := GoWorkersOptions{Workers: 3, Logs: 1, Timeout: 20, QSize: 256}
+	_ = New(opts)
+}
