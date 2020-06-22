@@ -64,6 +64,7 @@ func main() {
 ```
 
 ## TODO
+- [x] Add logs toggle
 - [ ] When the goworkers machine is stopped, ensure that everything is cleanedup
 - [ ] Add support for a 'results' channel
 - [ ] An option to auto-adjust worker pool size
