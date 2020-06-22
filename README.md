@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpaks/goworkers)](https://goreportcard.com/report/github.com/dpaks/goworkers)
 
 A minimal and efficient workerpool implementation in Go using goroutines.
-> This project is just in alpha phase. Work commenced on 21-06-2020.
+> This project is just in beta phase. Work commenced on 21-06-2020.
 
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
 
@@ -29,15 +29,15 @@ import (
 )
 
 func main() {
-    opts := goworkers.Options{Workers: 20, Timeout: 50}
-    gw := goworkers.New(opts)
-
+	opts := goworkers.Options{Workers: 20, Timeout: 50}
+	gw := goworkers.New(opts)
+	
 	fn := func(i int) {
 		fmt.Println("Start Job", i)
 		time.Sleep(time.Duration(i) * time.Second)
 		fmt.Println("End Job", i)
 	}
-
+	
 	for _, value := range []int{9, 7, 1, 2, 3} {
 		i := value
 		gw.Submit(func() {
@@ -45,8 +45,8 @@ func main() {
 		})
 	}
 	log.Println("Submitted!")
-
-    gw.Stop()
+	
+	gw.Stop()
 }
 ```
 
@@ -63,14 +63,14 @@ import (
 )
 
 func main() {
-    gw := goworkers.New()
-
+	gw := goworkers.New()
+	
 	fn := func(i int) {
 		fmt.Println("Start Job", i)
 		time.Sleep(time.Duration(i) * time.Second)
 		fmt.Println("End Job", i)
 	}
-
+	
 	for _, value := range []int{9, 7, 1, 2, 3} {
 		i := value
 		gw.Submit(func() {
@@ -78,8 +78,8 @@ func main() {
 		})
 	}
 	log.Println("Submitted!")
-
-    gw.Stop()
+	
+	gw.Stop()
 }
 ```
 

@@ -102,7 +102,7 @@ func Example() {
 		})
 	}
 
-	log.Println("SUBMITTED")
+	log.Println("Submitted!")
 
 	gw.Stop()
 }
@@ -139,7 +139,7 @@ func Example_simple() {
 		fmt.Println("I'm fine, thank you!")
 	})
 
-	log.Println("SUBMITTED")
+	log.Println("Submitted!")
 
 	gw.Stop()
 }
