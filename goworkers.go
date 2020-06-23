@@ -75,7 +75,8 @@ func init() {
 // Accepts optional Options{} argument.
 func New(args ...Options) *GoWorkers {
 	gw := &GoWorkers{
-		workerQ:   make(chan func()),
+		workerQ: make(chan func()),
+		// Do not remove jobQ - to stop receiving input once Stop() is called
 		jobQ:      make(chan func()),
 		terminate: make(chan struct{}),
 	}
@@ -167,19 +168,12 @@ func (gw *GoWorkers) start() {
 		select {
 		case <-gw.terminate:
 			return
-		case job, ok := <-gw.jobQ:
-			if !ok {
-				continue
-			}
+		case job := <-gw.jobQ:
 			gw.bufferedQ <- job
 		}
 
 		select {
-		case job, ok := <-gw.bufferedQ:
-			if !ok {
-				continue
-			}
-
+		case job := <-gw.bufferedQ:
 			go func(job func()) {
 				if (gw.WorkerNum() < 2) || (gw.WorkerNum() < gw.MaxWorkerNum() && gw.QueuedJobNum() >= 1) {
 					go gw.startWorker()
@@ -206,14 +200,7 @@ func (gw *GoWorkers) startWorker() {
 
 	for {
 		select {
-		case job, ok := <-gw.workerQ:
-			if !ok {
-				continue
-			}
-			if job == nil {
-				return
-			}
-
+		case job := <-gw.workerQ:
 			job()
 			atomic.AddUint32(&gw.numJobs, ^uint32(0))
 			timer.Reset(gw.timeout)
