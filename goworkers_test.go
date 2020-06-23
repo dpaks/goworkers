@@ -321,6 +321,34 @@ func Example_simple() {
 	gw.Stop()
 }
 
+func Example_benchmark() {
+	tStart := time.Now()
+
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+	tDiff := tEnd.Sub(tStart)
+
+	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
+}
+
 func ExampleNew_withoutArgs() {
 	_ = New()
 }

@@ -84,6 +84,48 @@ func main() {
 }
 ```
 
+###### Benchmark
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/dpaks/goworkers"
+)
+
+func main() {
+	tStart := time.Now()
+
+	opts := goworkers.Options{Workers: 500}
+	gw := goworkers.New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+	tDiff := tEnd.Sub(tStart)
+
+	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
+}
+```
+**Output:** Time taken to execute 500 jobs that are 5 seconds long is 5.50778295
+
 ## TODO
 - [x] Add logs toggle
 - [x] When the goworkers machine is stopped, ensure that everything is cleanedup
