@@ -5,7 +5,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpaks/goworkers)](https://goreportcard.com/report/github.com/dpaks/goworkers)
 
 A minimal and efficient workerpool implementation in Go using goroutines.
-> This project is just in beta phase. Work commenced on 21-06-2020.
+> This project is in beta phase.
+> Started on 21-06-2020.
+> Do not user master branch. Pick any release, preferably the latest one.
 
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
 

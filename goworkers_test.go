@@ -18,7 +18,7 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{9, 7, 1, 2, 3} {
+	for _, value := range []int{3, 2, 1} {
 		i := value
 		gw.Submit(func() {
 			fn(i)
@@ -49,7 +49,7 @@ func TestFunctionalityWithArgs(t *testing.T) {
 		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{9, 7, 1, 2, 3} {
+	for _, value := range []int{3, 2, 1} {
 		i := value
 		gw.Submit(func() {
 			fn(i)
@@ -68,7 +68,7 @@ func TestFunctionalityWithArgs(t *testing.T) {
 	}
 }
 
-func TestArgs(t *testing.T) {
+func TestWorkerArg(t *testing.T) {
 	tables := []struct {
 		Given    uint32
 		Expected uint32
@@ -86,6 +86,114 @@ func TestArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestTimeoutArg(t *testing.T) {
+	tables := []struct {
+		Given    uint32
+		Expected uint32
+	}{
+		{defaultTimeout, defaultTimeout},
+		{defaultTimeout - 1, defaultTimeout},
+		{defaultTimeout + 1, defaultTimeout + 1},
+	}
+
+	for _, table := range tables {
+		opts := Options{Timeout: table.Given}
+		gw := New(opts)
+
+		if gw.timeout != (time.Second * time.Duration(table.Expected)) {
+			t.Errorf("Expected %d, Got %d", table.Expected, gw.timeout)
+		}
+	}
+}
+
+func TestBufferedQArg(t *testing.T) {
+	tables := []struct {
+		Given    uint32
+		Expected uint32
+	}{
+		{defaultQSize, defaultQSize},
+		{defaultQSize - 1, defaultQSize},
+		{defaultQSize + 1, defaultQSize + 1},
+	}
+
+	for _, table := range tables {
+		opts := Options{QSize: table.Given}
+		_ = New(opts)
+	}
+}
+
+func TestLogsArg(t *testing.T) {
+	for _, logLvl := range []uint8{0, 1, 2, 3} {
+		opts := Options{Logs: logLvl}
+		_ = New(opts)
+	}
+}
+
+func TestSubmitAfterStop(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{2, 1} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.Submit(func() {})
+}
+
+func TestStopAfterStop(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{2, 1} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.Stop()
+}
+
+func TestLongJobs(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{12, 12} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.Stop()
+}
+
+/* ===================== Examples ===================== */
 
 func Example() {
 	gw := New()
