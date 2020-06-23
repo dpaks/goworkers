@@ -14,13 +14,14 @@ const (
 	// Time after which a worker will be killed if inactive
 	defaultTimeout = 10
 	// Number of initial workers spawned if unspecified
-	defaultWorkers = 2
+	defaultWorkers = 64
 	// The size of the buffered queue where jobs are queued up if no
 	// workers are available to process the incoming jobs, unless specified
-	defaultQSize = 100
+	defaultQSize = 128
 )
 
 var (
+	// Package level loggers
 	linfo  *log.Logger
 	ldebug *log.Logger
 	lerror *log.Logger
@@ -45,10 +46,10 @@ type GoWorkers struct {
 // Options configures the behaviour of worker pool.
 //
 // Timeout specifies the time after which an idle worker goroutine will be killed.
-// Default timeout is defaultTimeout seconds.
+// Default timeout is 10 seconds.
 //
 // Workers specifies the number of workers that will be spawned.
-// Default number of workers is defaultWorkers.
+// If unspecified, workers will be progressively spawned upto a maximum of 64.
 //
 // Logs accepts log levels - 0 (default), 1, 2.
 // 0: Only error logs.
@@ -56,7 +57,7 @@ type GoWorkers struct {
 // 2: lerror, info and debug logs (badly verbose).
 //
 // QSize specifies the size of the queue that holds up incoming jobs.
-// Minimum value is defaultQSize.
+// Minimum value is 128.
 type Options struct {
 	Timeout uint32
 	Workers uint32
@@ -157,13 +158,23 @@ func (gw *GoWorkers) Stop() {
 			continue
 		}
 		gw.terminate <- struct{}{}
+		// close the input channel
 		close(gw.jobQ)
 		break
 	}
 	linfo.Println("Successfully shut the go workers!")
 }
 
+func (gw *GoWorkers) debug() {
+	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n qnumJobs: %d\n timeout: %f\n stopping: %d\n***\n",
+		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.qnumJobs, gw.timeout.Seconds(), gw.stopping)
+}
+
 func (gw *GoWorkers) start() {
+	defer func() {
+		close(gw.bufferedQ)
+		close(gw.workerQ)
+	}()
 	for {
 		select {
 		case <-gw.terminate:
@@ -175,6 +186,8 @@ func (gw *GoWorkers) start() {
 		select {
 		case job := <-gw.bufferedQ:
 			go func(job func()) {
+				// Should be ideally an atomic operation. However, an extra goroutine tradesoff
+				// better than using a mutex.
 				if (gw.WorkerNum() < 2) || (gw.WorkerNum() < gw.MaxWorkerNum() && gw.QueuedJobNum() >= 1) {
 					go gw.startWorker()
 				}
@@ -200,11 +213,16 @@ func (gw *GoWorkers) startWorker() {
 
 	for {
 		select {
-		case job := <-gw.workerQ:
+		case job, ok := <-gw.workerQ:
+			if !ok {
+				return
+			}
 			job()
 			atomic.AddUint32(&gw.numJobs, ^uint32(0))
 			timer.Reset(gw.timeout)
 		case <-timer.C:
+			// Should be ideally an atomic operation. However, an extra goroutine tradesoff
+			// better than using a mutex.
 			if (gw.JobNum() + gw.QueuedJobNum()) < gw.WorkerNum() {
 				linfo.Println("Timed out - killing self!")
 				return

@@ -1,13 +1,12 @@
 # GoWorkers
 [![CircleCI](https://circleci.com/gh/dpaks/goworkers.svg?style=shield)](https://app.circleci.com/pipelines/github/dpaks/goworkers)
 [![Codecov](https://codecov.io/gh/dpaks/goworkers/branch/master/graph/badge.svg)](https://codecov.io/gh/dpaks/goworkers)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/dpaks/goworkers/blob/master/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpaks/goworkers)](https://goreportcard.com/report/github.com/dpaks/goworkers)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/dpaks/goworkers/blob/master/LICENSE)
 
 A minimal and efficient workerpool implementation in Go using goroutines.
-> This project is in beta phase.
-> Started on 21-06-2020.
-> Do not user master branch. Pick any release, preferably the latest one.
+
+**Note:** Do not user master branch. Pick any release, preferably the latest one.
 
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
 
@@ -87,7 +86,7 @@ func main() {
 
 ## TODO
 - [x] Add logs toggle
-- [ ] When the goworkers machine is stopped, ensure that everything is cleanedup
+- [x] When the goworkers machine is stopped, ensure that everything is cleanedup
 - [ ] Add support for a 'results' channel
 - [ ] An option to auto-adjust worker pool size
 - [ ] Add total execution time

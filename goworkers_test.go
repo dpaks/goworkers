@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+// TestStressWithoutArgs tests 500 jobs taking 5 seconds each with default 64 workers
+func TestStressWithoutArgs(t *testing.T) {
+	tStart := time.Now()
+
+	opts := Options{}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 41.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
+// TestStressWithArgs tests 500 jobs taking 5 seconds each with 500 workers
+func TestStressWithArgs(t *testing.T) {
+	tStart := time.Now()
+
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 6.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
 func TestFunctionalityWithoutArgs(t *testing.T) {
 	tStart := time.Now()
 
@@ -32,8 +96,8 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 21.0 {
-		t.Errorf("Expect to complete in less than 10 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 6.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
 	}
 }
 
@@ -63,8 +127,8 @@ func TestFunctionalityWithArgs(t *testing.T) {
 
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 21.0 {
-		t.Errorf("Expect to complete in less than 10 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 6.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
 	}
 }
 
@@ -73,16 +137,16 @@ func TestWorkerArg(t *testing.T) {
 		Given    uint32
 		Expected uint32
 	}{
-		{1, 2},
-		{3, 3},
+		{defaultWorkers - 1, defaultWorkers},
+		{defaultWorkers + 1, defaultWorkers + 1},
 	}
 
 	for _, table := range tables {
 		opts := Options{Workers: table.Given}
 		gw := New(opts)
 
-		if gw.MaxWorkerNum() != table.Expected {
-			t.Errorf("Expected %d, Got %d", table.Expected, table.Given)
+		if gw.maxWorkers != table.Expected {
+			t.Errorf("Expected %d, Got %d", table.Expected, gw.maxWorkers)
 		}
 	}
 }
@@ -124,7 +188,7 @@ func TestBufferedQArg(t *testing.T) {
 }
 
 func TestLogsArg(t *testing.T) {
-	for _, logLvl := range []uint8{0, 1, 2, 3} {
+	for _, logLvl := range []uint8{1, 2, 3, 0} {
 		opts := Options{Logs: logLvl}
 		_ = New(opts)
 	}
@@ -193,6 +257,11 @@ func TestLongJobs(t *testing.T) {
 	gw.Stop()
 }
 
+func TestDebug(t *testing.T) {
+	gw := New()
+	gw.debug()
+}
+
 /* ===================== Examples ===================== */
 
 func Example() {
@@ -216,7 +285,7 @@ func Example() {
 }
 
 func Example_withArgs() {
-	opts := Options{Workers: 3, Logs: 2, Timeout: 10, QSize: 256}
+	opts := Options{Workers: 3, Logs: 1, Timeout: 10, QSize: 256}
 	gw := New(opts)
 
 	fn := func(i int) {
