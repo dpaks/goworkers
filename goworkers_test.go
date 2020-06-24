@@ -161,174 +161,6 @@ func TestFunctionalityWithArgs(t *testing.T) {
 	}
 }
 
-/*
-// TestStressWithoutArgs tests 500 jobs taking 5 seconds each with default 64 workers
-func TestStressWithoutArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{}
-	gw := New(opts)
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 41.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-}
-
-// TestStressWithArgs tests 500 jobs taking 5 seconds each with 500 workers
-func TestStressWithArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{Workers: 500}
-	gw := New(opts)
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-}
-
-// TestStressWithArgsError tests 500 jobs taking 5 seconds each with 500 workers
-func TestStressWithArgsError(t *testing.T) {
-	tStart := time.Now()
-	errResps := 0
-
-	opts := Options{Workers: 500}
-	gw := New(opts)
-
-	go func() {
-		for range gw.ErrChan {
-			errResps++
-		}
-	}()
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.SubmitCheckError(func() error {
-			fn(i)
-			return nil
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expected to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-
-	if errResps != 500 {
-		t.Errorf("Expected 500 error responses, got %d", errResps)
-	}
-}
-
-// TestStressWithArgsResult tests 500 jobs taking 5 seconds each with 500 workers
-func TestStressWithArgsResult(t *testing.T) {
-	tStart := time.Now()
-	errResps := 0
-	resResps := 0
-
-	opts := Options{Workers: 500}
-	gw := New(opts)
-
-	go func() {
-		for range gw.ErrChan {
-			errResps++
-		}
-	}()
-
-	go func() {
-		for range gw.ResultChan {
-			resResps++
-		}
-	}()
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.SubmitCheckResult(func() (interface{}, error) {
-			fn(i)
-			if i%2 == 0 {
-				return nil, fmt.Errorf("error")
-			}
-			return "value", nil
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expected to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-
-	if errResps != 250 {
-		t.Errorf("Expected 500 error responses, got %d", errResps)
-	}
-
-	if resResps != 250 {
-		t.Errorf("Expected 500 result responses, got %d", resResps)
-	}
-}
-*/
-
 func TestWorkerArg(t *testing.T) {
 	tables := []struct {
 		Given    uint32
@@ -521,6 +353,55 @@ func TestTimerReset(t *testing.T) {
 func TestDebug(t *testing.T) {
 	gw := New()
 	gw.debug()
+}
+
+/* ===================== Benchmarks ===================== */
+
+func BenchmarkWithoutArgs(b *testing.B) {
+	gw := New()
+
+	for i := 0; i < b.N; i++ {
+		gw.Submit(func() {})
+	}
+
+	gw.Stop()
+}
+
+func BenchmarkWithArgs(b *testing.B) {
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	for i := 0; i < b.N; i++ {
+		gw.Submit(func() {})
+	}
+
+	gw.Stop()
+}
+
+func BenchmarkWithArgsError(b *testing.B) {
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	for i := 0; i < b.N; i++ {
+		gw.SubmitCheckError(func() error {
+			return nil
+		})
+	}
+
+	gw.Stop()
+}
+
+func BenchmarkWithArgsResult(b *testing.B) {
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	for i := 0; i < b.N; i++ {
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			return nil, nil
+		})
+	}
+
+	gw.Stop()
 }
 
 /* ===================== Examples ===================== */

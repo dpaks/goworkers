@@ -159,7 +159,7 @@ func (gw *GoWorkers) Submit(job func()) {
 
 // SubmitCheckError is a non-blocking call with arg of type `func() error`
 //
-// Use this if you need to catch error returned by your job.
+// Use this if your job returns 'error'.
 // Use ErrChan buffered channel to read error, if any.
 func (gw *GoWorkers) SubmitCheckError(job func() error) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
@@ -178,7 +178,7 @@ func (gw *GoWorkers) SubmitCheckError(job func() error) {
 
 // SubmitCheckResult is a non-blocking call with arg of type `func() (interface{}, error)`
 //
-// Use this if you need to catch error and output returned by your job.
+// Use this if your job returns output and error.
 // Use ErrChan buffered channel to read error, if any.
 // Use ResultChan buffered channel to read output, if any.
 // For a job, either of error or output would be sent if available.
