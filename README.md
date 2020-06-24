@@ -13,6 +13,7 @@ A minimal and efficient scalable workerpool implementation in Go using goroutine
 ## Table of Contents
 - [Installation](#installation)
 - [Examples](#examples)
+  - [Basic](#basic)
   - [With Arguments](#with-arguments)
   - [Without Arguments](#without-arguments)
   - [Benchmark](#benchmark)
@@ -27,6 +28,27 @@ $ go get github.com/dpaks/goworkers
 ```
 
 ## Examples
+
+
+###### Basic
+```go
+package main
+
+import "github.com/dpaks/goworkers"
+
+func main() {
+	// initialise
+	gw := goworkers.New()
+
+	// non-blocking call
+	gw.Submit(func() {
+	// do your work here
+	})
+
+	// wait till your job finishes
+	gw.Stop()
+}
+```
 
 ###### With arguments
 ```go
@@ -44,6 +66,7 @@ func main() {
 	opts := goworkers.Options{Workers: 20}
 	gw := goworkers.New(opts)
 	
+	// your actual work
 	fn := func(i int) {
 		fmt.Println("Start Job", i)
 		time.Sleep(time.Duration(i) * time.Second)
