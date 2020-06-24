@@ -4,11 +4,22 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpaks/goworkers)](https://goreportcard.com/report/github.com/dpaks/goworkers)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/dpaks/goworkers/blob/master/LICENSE)
 
-A minimal and efficient workerpool implementation in Go using goroutines.
+A minimal and efficient scalable workerpool implementation in Go using goroutines.
 
-**Note:** Do not user master branch. Pick any release, preferably the latest one.
+**Note:** Do not user master branch. Use the latest release.
 
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
+
+## Table of Contents
+- [Installation](#installation)
+- [Examples](#examples)
+  - [With Arguments](#with-arguments)
+  - [Without Arguments](#without-arguments)
+  - [Benchmark](#benchmark)
+  - [Return Error from Job](#to-receive-error-from-job)
+  - [Return Output and Error from Job](#to-receive-output-and-error-from-job)
+- [TODO](#todo)
+- [FAQ](#faq)
 
 ## Installation
 ```
@@ -30,7 +41,7 @@ import (
 )
 
 func main() {
-	opts := goworkers.Options{Workers: 20, Timeout: 50}
+	opts := goworkers.Options{Workers: 20}
 	gw := goworkers.New(opts)
 	
 	fn := func(i int) {
@@ -124,7 +135,7 @@ func main() {
 	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
 }
 ```
-**Output:** Time taken to execute 500 jobs that are 5 seconds long is 5.50778295
+**Output:** Time taken to execute 500 jobs that are 5 seconds long is 5.01778295
 
 ###### To Receive Error from Job
 ```go
@@ -240,3 +251,35 @@ func main() {
 - [x] Add support for a 'results' channel
 - [ ] An option to auto-adjust worker pool size
 - [ ] Add total execution time
+
+## FAQ
+
+**Q.** I don't want to use error channel. I only need output. What do I?
+
+**A.** Listen only to output channel. It is not compulsory to listen to any channel if you don't need any output.
+
+**Q.** I get duplicate output.
+
+**A.** In the below _wrong_ snippet, k and v are initialised only once. Since references are passed to the _Submit_ function, they may get overwritten with the newer value.
+
+Wrong code
+```go
+for k, v := range myMap {
+    wg.SubmitCheckResult(func() (interface{}, error) {
+            return myFunc(k, v)
+})
+```
+
+Correct code
+```go
+for i, j := range myMap {
+    k := i
+    v := j
+    wg.SubmitCheckResult(func() (interface{}, error) {
+            return myFunc(k, v)
+})
+```
+
+**Q.** Can I use a combination of _Submit()_, _SubmitCheckError()_ and _SubmitCheckResult()_ and still use output and error channels?
+
+**A.** It is absolutely safe.

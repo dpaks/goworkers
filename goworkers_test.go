@@ -30,8 +30,8 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 	tEnd := time.Now()
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 3.5 {
-		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 4.0 {
+		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
 	}
 }
 
@@ -66,8 +66,8 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 	tEnd := time.Now()
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 3.5 {
-		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 4.0 {
+		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
 	}
 
 	if errResps != 3 {
@@ -117,8 +117,8 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	tEnd := time.Now()
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 3.5 {
-		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 4.0 {
+		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
 	}
 
 	if errResps != 1 {
@@ -156,8 +156,8 @@ func TestFunctionalityWithArgs(t *testing.T) {
 
 	tDiff := tEnd.Sub(tStart)
 
-	if tDiff.Seconds() > 3.5 {
-		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	if tDiff.Seconds() > 4.0 {
+		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
 	}
 }
 
@@ -292,8 +292,9 @@ func TestSubmitCheckErrorUnreadChan(t *testing.T) {
 	gw := New()
 
 	for i := 0; i < 301; i++ {
+		n := i
 		gw.SubmitCheckError(func() error {
-			if i%2 == 0 {
+			if n%2 == 0 {
 				return nil
 			}
 			return fmt.Errorf("error")
@@ -308,8 +309,9 @@ func TestSubmitCheckResultUnreadChan(t *testing.T) {
 	gw := New()
 
 	for i := 0; i < 501; i++ {
+		n := i
 		gw.SubmitCheckResult(func() (interface{}, error) {
-			if i%2 == 0 {
+			if n%2 == 0 {
 				return "output", nil
 			}
 			return nil, fmt.Errorf("error")
