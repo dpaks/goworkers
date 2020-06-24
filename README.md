@@ -11,15 +11,15 @@ A minimal and efficient scalable workerpool implementation in Go using goroutine
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
 
 ## Table of Contents
-- [Installation](https://github.com/dpaks/goworkers#installation)
-- [Examples](https://github.com/dpaks/goworkers#examples)
-  - [With Arguments](https://github.com/dpaks/goworkers#with-arguments)
-  - [Without Arguments](https://github.com/dpaks/goworkers#without-arguments)
-  - [Benchmark](https://github.com/dpaks/goworkers#benchmark)
-  - [Return Error from Job](https://github.com/dpaks/goworkers#to-receive-error-from-job)
-  - [Return Output and Error from Job](https://github.com/dpaks/goworkers#to-receive-output-and-error-from-job)
-- [TODO](https://github.com/dpaks/goworkers#todo)
-- [FAQ](https://github.com/dpaks/goworkers#faq)
+- [Installation](#installation)
+- [Examples](#examples)
+  - [With Arguments](#with-arguments)
+  - [Without Arguments](#without-arguments)
+  - [Benchmark](#benchmark)
+  - [Return Error from Job](#to-receive-error-from-job)
+  - [Return Output and Error from Job](#to-receive-output-and-error-from-job)
+- [TODO](#todo)
+- [FAQ](#faq)
 
 ## Installation
 ```
