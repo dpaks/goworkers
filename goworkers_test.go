@@ -7,6 +7,161 @@ import (
 	"time"
 )
 
+func TestFunctionalityWithoutArgs(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	tStart := time.Now()
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 3.5 {
+		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
+func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
+	errResps := 0
+	gw := New()
+
+	go func() {
+		for range gw.ErrChan {
+			errResps++
+		}
+	}()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	tStart := time.Now()
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.SubmitCheckError(func() error {
+			fn(i)
+			return nil
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 3.5 {
+		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	}
+
+	if errResps != 3 {
+		t.Errorf("Expected 3 error responses, got %d", errResps)
+	}
+}
+
+func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
+	errResps := 0
+	resResps := 0
+
+	gw := New()
+
+	go func() {
+		for range gw.ErrChan {
+			errResps++
+		}
+	}()
+
+	go func() {
+		for range gw.ResultChan {
+			resResps++
+		}
+	}()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	tStart := time.Now()
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			fn(i)
+			if i%2 == 0 {
+				return nil, fmt.Errorf("error")
+			}
+			return "value", nil
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 3.5 {
+		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	}
+
+	if errResps != 1 {
+		t.Errorf("Expected 1 error responses, got %d", errResps)
+	}
+
+	if resResps != 2 {
+		t.Errorf("Expected 2 result responses, got %d", resResps)
+	}
+}
+
+func TestFunctionalityWithArgs(t *testing.T) {
+	tStart := time.Now()
+
+	opts := Options{Workers: 3, Logs: 1}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 3.5 {
+		t.Errorf("Expect to complete in less than 3.5 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
+/*
 // TestStressWithoutArgs tests 500 jobs taking 5 seconds each with default 64 workers
 func TestStressWithoutArgs(t *testing.T) {
 	tStart := time.Now()
@@ -71,52 +226,31 @@ func TestStressWithArgs(t *testing.T) {
 	}
 }
 
-func TestFunctionalityWithoutArgs(t *testing.T) {
+// TestStressWithArgsError tests 500 jobs taking 5 seconds each with 500 workers
+func TestStressWithArgsError(t *testing.T) {
 	tStart := time.Now()
+	errResps := 0
 
-	gw := New()
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for _, value := range []int{3, 2, 1} {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-}
-
-func TestFunctionalityWithArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{Workers: 3, Logs: 1}
+	opts := Options{Workers: 500}
 	gw := New(opts)
 
+	go func() {
+		for range gw.ErrChan {
+			errResps++
+		}
+	}()
+
 	fn := func(i int) {
 		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
+		time.Sleep(time.Duration(5) * time.Second)
 		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{3, 2, 1} {
+	for value := 500; value > 0; value-- {
 		i := value
-		gw.Submit(func() {
+		gw.SubmitCheckError(func() error {
 			fn(i)
+			return nil
 		})
 	}
 	log.Println("Submitted!")
@@ -128,9 +262,72 @@ func TestFunctionalityWithArgs(t *testing.T) {
 	tDiff := tEnd.Sub(tStart)
 
 	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+		t.Errorf("Expected to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+
+	if errResps != 500 {
+		t.Errorf("Expected 500 error responses, got %d", errResps)
 	}
 }
+
+// TestStressWithArgsResult tests 500 jobs taking 5 seconds each with 500 workers
+func TestStressWithArgsResult(t *testing.T) {
+	tStart := time.Now()
+	errResps := 0
+	resResps := 0
+
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	go func() {
+		for range gw.ErrChan {
+			errResps++
+		}
+	}()
+
+	go func() {
+		for range gw.ResultChan {
+			resResps++
+		}
+	}()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			fn(i)
+			if i%2 == 0 {
+				return nil, fmt.Errorf("error")
+			}
+			return "value", nil
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 6.0 {
+		t.Errorf("Expected to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+
+	if errResps != 250 {
+		t.Errorf("Expected 500 error responses, got %d", errResps)
+	}
+
+	if resResps != 250 {
+		t.Errorf("Expected 500 result responses, got %d", resResps)
+	}
+}
+*/
 
 func TestWorkerArg(t *testing.T) {
 	tables := []struct {
@@ -215,6 +412,50 @@ func TestSubmitAfterStop(t *testing.T) {
 	gw.Submit(func() {})
 }
 
+func TestSubmitCheckErrorAfterStop(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{2, 1} {
+		i := value
+		gw.SubmitCheckError(func() error {
+			fn(i)
+			return nil
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.SubmitCheckError(func() error { return nil })
+}
+
+func TestSubmitCheckResultAfterStop(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for _, value := range []int{2, 1} {
+		i := value
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			fn(i)
+			return nil, nil
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
+}
+
 func TestStopAfterStop(t *testing.T) {
 	gw := New()
 
@@ -249,6 +490,26 @@ func TestLongJobs(t *testing.T) {
 		i := value
 		gw.Submit(func() {
 			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+	gw.Stop()
+}
+
+func TestTimerReset(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(i) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 0; value < 500; value++ {
+		gw.Submit(func() {
+			fn(2)
 		})
 	}
 	log.Println("Submitted!")
@@ -349,6 +610,88 @@ func Example_benchmark() {
 	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
 }
 
+func Example_errorChannel() {
+	gw := New()
+
+	// You must strictly start reading from the error channel before invoking
+	// SubmitCheckError() else you'll miss the updates.
+	// You can employ any mechanism to read from this channel.
+	go func() {
+		// Error channel provides errors from job, if any
+		for err := range gw.ErrChan {
+			fmt.Println(err)
+		}
+	}()
+
+	// This is your actual function
+	fn := func(i int) error {
+		// Do work here
+		return fmt.Errorf("Got error %d", i)
+	}
+
+	// The job submit part
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.SubmitCheckError(func() error {
+			return fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	// Wait for jobs to finish
+	gw.Stop()
+}
+
+func Example_outputChannel() {
+	gw := New()
+
+	type myOutput struct {
+		Idx  int
+		Name string
+	}
+
+	// You must strictly start reading from the error and output channels
+	// before invoking SubmitCheckResult() else you'll miss the updates.
+	// You can employ any mechanism to read from these channels.
+	go func() {
+		for {
+			select {
+			// Error channel provides errors from job, if any
+			case err := <-gw.ErrChan:
+				fmt.Printf("Error: %s\n", err.Error())
+			// Result channel provides output from job, if any
+			// It will be of type interface{}
+			case res := <-gw.ResultChan:
+				fmt.Printf("Type: %T, Value: %+v\n", res, res)
+			}
+		}
+	}()
+
+	// This is your actual function
+	fn := func(i int) (interface{}, error) {
+		// Do work here
+
+		// return error
+		if i%2 == 0 {
+			return nil, fmt.Errorf("Got error %d", i)
+		}
+		// return output
+		return myOutput{Idx: i, Name: "dummy"}, nil
+	}
+
+	// The job submit part
+	for _, value := range []int{3, 2, 1} {
+		i := value
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			return fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	// Wait for jobs to finish
+	gw.Stop()
+}
+
 func ExampleNew_withoutArgs() {
 	_ = New()
 }
@@ -363,6 +706,28 @@ func ExampleGoWorkers_Submit() {
 
 	gw.Submit(func() {
 		fmt.Println("Hello, how are you?")
+	})
+
+	gw.Stop()
+}
+
+func ExampleGoWorkers_SubmitCheckError() {
+	gw := New()
+
+	gw.SubmitCheckError(func() error {
+		// Do some work here
+		return fmt.Errorf("This is an error message")
+	})
+
+	gw.Stop()
+}
+
+func ExampleGoWorkers_SubmitCheckResult() {
+	gw := New()
+
+	gw.SubmitCheckResult(func() (interface{}, error) {
+		// Do some work here
+		return fmt.Sprintf("This is an output message"), nil
 	})
 
 	gw.Stop()
