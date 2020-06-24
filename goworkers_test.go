@@ -79,6 +79,8 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	errResps := 0
 	resResps := 0
 
+func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
+	errResps := 0
 	gw := New()
 
 	go func() {
