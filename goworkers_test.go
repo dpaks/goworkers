@@ -7,70 +7,6 @@ import (
 	"time"
 )
 
-// TestStressWithoutArgs tests 500 jobs taking 5 seconds each with default 64 workers
-func TestStressWithoutArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{}
-	gw := New(opts)
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 41.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-}
-
-// TestStressWithArgs tests 500 jobs taking 5 seconds each with 500 workers
-func TestStressWithArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{Workers: 500}
-	gw := New(opts)
-
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
-
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
-
-	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 6.0 {
-		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
-	}
-}
-
 func TestFunctionalityWithoutArgs(t *testing.T) {
 	gw := New()
 
@@ -350,6 +286,38 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 
 	gw.Stop()
 	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
+}
+
+func TestSubmitCheckErrorUnreadChan(t *testing.T) {
+	gw := New()
+
+	for i := 0; i < 301; i++ {
+		gw.SubmitCheckError(func() error {
+			if i%2 == 0 {
+				return nil
+			}
+			return fmt.Errorf("error")
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+}
+
+func TestSubmitCheckResultUnreadChan(t *testing.T) {
+	gw := New()
+
+	for i := 0; i < 501; i++ {
+		gw.SubmitCheckResult(func() (interface{}, error) {
+			if i%2 == 0 {
+				return "output", nil
+			}
+			return nil, fmt.Errorf("error")
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
 }
 
 func TestStopAfterStop(t *testing.T) {
