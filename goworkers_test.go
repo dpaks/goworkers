@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+// TestStressWithoutArgs tests 500 jobs taking 5 seconds each with default 64 workers
+func TestStressWithoutArgs(t *testing.T) {
+	tStart := time.Now()
+
+	opts := Options{}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 41.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
+// TestStressWithArgs tests 500 jobs taking 5 seconds each with 500 workers
+func TestStressWithArgs(t *testing.T) {
+	tStart := time.Now()
+
+	opts := Options{Workers: 500}
+	gw := New(opts)
+
+	fn := func(i int) {
+		fmt.Println("Start Job", i)
+		time.Sleep(time.Duration(5) * time.Second)
+		fmt.Println("End Job", i)
+	}
+
+	for value := 500; value > 0; value-- {
+		i := value
+		gw.Submit(func() {
+			fn(i)
+		})
+	}
+	log.Println("Submitted!")
+
+	gw.Stop()
+
+	tEnd := time.Now()
+
+	tDiff := tEnd.Sub(tStart)
+
+	if tDiff.Seconds() > 6.0 {
+		t.Errorf("Expect to complete in less than 6 seconds, took %f seconds", tDiff.Seconds())
+	}
+}
+
 func TestFunctionalityWithoutArgs(t *testing.T) {
 	gw := New()
 
