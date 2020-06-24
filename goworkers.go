@@ -18,6 +18,9 @@ const (
 	// The size of the buffered queue where jobs are queued up if no
 	// workers are available to process the incoming jobs, unless specified
 	defaultQSize = 128
+	// A comfortable size for the buffered output channel such that chances
+	// for a slow receiver to miss updates are minute
+	outputChanSize = 100
 )
 
 var (
@@ -29,7 +32,7 @@ var (
 
 // GoWorkers is a collection of worker goroutines.
 //
-// Idle workers will be timed out. At minimum, 2 workers will be spawned.
+// Idle workers will be timed out.
 type GoWorkers struct {
 	numWorkers uint32
 	maxWorkers uint32
@@ -41,6 +44,20 @@ type GoWorkers struct {
 	jobQ       chan func()
 	terminate  chan struct{}
 	stopping   int32
+	// ErrChan is a safe buffered output channel of size 100 on which error
+	// returned by a job can be caught, if any. The channel will be closed
+	// after Stop() returns. Valid only for SubmitCheckError() and SubmitCheckResult().
+	// You must start listening to this channel before submitting jobs so that no
+	// updates would be missed. This is comfortably sized at 100 so that chances
+	// that a slow receiver missing updates would be minute.
+	ErrChan chan error
+	// ResultChan is a safe buffered output channel of size 100 on which error
+	// and output returned by a job can be caught, if any. The channels will be
+	// closed after Stop() returns. Valid only for SubmitCheckResult().
+	// You must start listening to this channel before submitting jobs so that no
+	// updates would be missed. This is comfortably sized at 100 so that chances
+	// that a slow receiver missing updates would be minute.
+	ResultChan chan interface{}
 }
 
 // Options configures the behaviour of worker pool.
@@ -77,9 +94,11 @@ func init() {
 func New(args ...Options) *GoWorkers {
 	gw := &GoWorkers{
 		workerQ: make(chan func()),
-		// Do not remove jobQ - to stop receiving input once Stop() is called
-		jobQ:      make(chan func()),
-		terminate: make(chan struct{}),
+		// Do not remove jobQ. To stop receiving input once Stop() is called
+		jobQ:       make(chan func()),
+		terminate:  make(chan struct{}),
+		ErrChan:    make(chan error, outputChanSize),
+		ResultChan: make(chan interface{}, outputChanSize),
 	}
 
 	gw.maxWorkers = defaultWorkers
@@ -128,14 +147,61 @@ func (gw *GoWorkers) MaxWorkerNum() uint32 {
 	return atomic.LoadUint32(&gw.maxWorkers)
 }
 
-// Submit is a non-blocking call with arg of type func()
+// Submit is a non-blocking call with arg of type `func()`
 func (gw *GoWorkers) Submit(job func()) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
 		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
 		return
 	}
 	atomic.AddUint32(&gw.qnumJobs, 1)
-	gw.jobQ <- job
+	gw.jobQ <- func() { job() }
+}
+
+// SubmitCheckError is a non-blocking call with arg of type `func() error`
+//
+// Use this if your job returns 'error'.
+// Use ErrChan buffered channel to read error, if any.
+func (gw *GoWorkers) SubmitCheckError(job func() error) {
+	if atomic.LoadInt32(&gw.stopping) == 1 {
+		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		return
+	}
+	atomic.AddUint32(&gw.qnumJobs, 1)
+	gw.jobQ <- func() {
+		err := job()
+		select {
+		case gw.ErrChan <- err:
+		default:
+		}
+	}
+}
+
+// SubmitCheckResult is a non-blocking call with arg of type `func() (interface{}, error)`
+//
+// Use this if your job returns output and error.
+// Use ErrChan buffered channel to read error, if any.
+// Use ResultChan buffered channel to read output, if any.
+// For a job, either of error or output would be sent if available.
+func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
+	if atomic.LoadInt32(&gw.stopping) == 1 {
+		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		return
+	}
+	atomic.AddUint32(&gw.qnumJobs, 1)
+	gw.jobQ <- func() {
+		result, err := job()
+		if err != nil {
+			select {
+			case gw.ErrChan <- err:
+			default:
+			}
+		} else {
+			select {
+			case gw.ResultChan <- result:
+			default:
+			}
+		}
+	}
 }
 
 func msleep(n int) {
@@ -144,7 +210,7 @@ func msleep(n int) {
 
 // Stop gracefully waits for jobs to finish running.
 //
-// This is a non-blocking call and returns when all the active and queued jobs are finished.
+// This is a blocking call and returns when all the active and queued jobs are finished.
 func (gw *GoWorkers) Stop() {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
 		linfo.Println("Stop already triggered")
@@ -174,6 +240,8 @@ func (gw *GoWorkers) start() {
 	defer func() {
 		close(gw.bufferedQ)
 		close(gw.workerQ)
+		close(gw.ErrChan)
+		close(gw.ResultChan)
 	}()
 	for {
 		select {
@@ -219,7 +287,6 @@ func (gw *GoWorkers) startWorker() {
 			}
 			job()
 			atomic.AddUint32(&gw.numJobs, ^uint32(0))
-			timer.Reset(gw.timeout)
 		case <-timer.C:
 			// Should be ideally an atomic operation. However, an extra goroutine tradesoff
 			// better than using a mutex.
@@ -227,6 +294,7 @@ func (gw *GoWorkers) startWorker() {
 				linfo.Println("Timed out - killing self!")
 				return
 			}
+			timer.Reset(gw.timeout)
 		}
 	}
 }
