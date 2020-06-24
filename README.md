@@ -261,6 +261,7 @@ func main() {
 **Q.** I get duplicate output.
 
 **A.** In the below _wrong_ snippet, k and v are initialised only once. Since references are passed to the _Submit_ function, they may get overwritten with the newer value.
+
 Wrong code
 ```go
 for k, v := range myMap {
