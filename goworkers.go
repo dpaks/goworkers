@@ -169,9 +169,11 @@ func (gw *GoWorkers) SubmitCheckError(job func() error) {
 	atomic.AddUint32(&gw.qnumJobs, 1)
 	gw.jobQ <- func() {
 		err := job()
-		select {
-		case gw.ErrChan <- err:
-		default:
+		if err != nil {
+			select {
+			case gw.ErrChan <- err:
+			default:
+			}
 		}
 	}
 }

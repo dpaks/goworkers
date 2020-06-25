@@ -288,6 +288,28 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
 }
 
+func TestSubmitCheckErrorNotSendNilToErrChan(t *testing.T) {
+	gw := New()
+	defer gw.Stop()
+
+	done := make(chan struct{})
+	job := func() error {
+		defer close(done)
+		return nil
+	}
+
+	gw.SubmitCheckError(job)
+	<-done
+
+	select {
+	case err := <-gw.ErrChan:
+		if err == nil {
+			t.Errorf("[want] Shuold not recv nil [got] Recv nil")
+		}
+	default:
+	}
+}
+
 func TestSubmitCheckErrorUnreadChan(t *testing.T) {
 	gw := New()
 
