@@ -56,7 +56,7 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 		i := value
 		gw.SubmitCheckError(func() error {
 			fn(i)
-			return nil
+			return fmt.Errorf("error")
 		})
 	}
 	log.Println("Submitted!")
@@ -304,7 +304,7 @@ func TestSubmitCheckErrorNotSendNilToErrChan(t *testing.T) {
 	select {
 	case err := <-gw.ErrChan:
 		if err == nil {
-			t.Errorf("[want] Shuold not recv nil [got] Recv nil")
+			t.Errorf("Expected non-nil, received nil")
 		}
 	default:
 	}
