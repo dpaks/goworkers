@@ -56,7 +56,7 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 		i := value
 		gw.SubmitCheckError(func() error {
 			fn(i)
-			return nil
+			return fmt.Errorf("error")
 		})
 	}
 	log.Println("Submitted!")
@@ -286,6 +286,28 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 
 	gw.Stop()
 	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
+}
+
+func TestSubmitCheckErrorNotSendNilToErrChan(t *testing.T) {
+	gw := New()
+	defer gw.Stop()
+
+	done := make(chan struct{})
+	job := func() error {
+		defer close(done)
+		return nil
+	}
+
+	gw.SubmitCheckError(job)
+	<-done
+
+	select {
+	case err := <-gw.ErrChan:
+		if err == nil {
+			t.Errorf("Expected non-nil, received nil")
+		}
+	default:
+	}
 }
 
 func TestSubmitCheckErrorUnreadChan(t *testing.T) {
