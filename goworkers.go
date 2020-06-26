@@ -42,7 +42,6 @@ type GoWorkers struct {
 	workerQ    chan func()
 	bufferedQ  chan func()
 	jobQ       chan func()
-	terminate  chan struct{}
 	stopping   int32
 	// ErrChan is a safe buffered output channel of size 100 on which error
 	// returned by a job can be caught, if any. The channel will be closed
@@ -96,7 +95,6 @@ func New(args ...Options) *GoWorkers {
 		workerQ: make(chan func()),
 		// Do not remove jobQ. To stop receiving input once Stop() is called
 		jobQ:       make(chan func()),
-		terminate:  make(chan struct{}),
 		ErrChan:    make(chan error, outputChanSize),
 		ResultChan: make(chan interface{}, outputChanSize),
 	}
@@ -215,8 +213,7 @@ func (gw *GoWorkers) Stop() {
 			msleep(1000)
 			continue
 		}
-		gw.terminate <- struct{}{}
-		// close the input channel
+		// close the input channel so that start() will exit
 		close(gw.jobQ)
 		break
 	}
@@ -279,9 +276,10 @@ func (gw *GoWorkers) start() {
 
 	for {
 		select {
-		case <-gw.terminate:
-			return
-		case job := <-gw.jobQ:
+		case job, ok := <-gw.jobQ:
+			if !ok {
+				return
+			}
 			select {
 			// if possible, process the job without queueing
 			case gw.workerQ <- job:
