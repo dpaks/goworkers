@@ -11,154 +11,136 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	tStart := time.Now()
-	for _, value := range []int{3, 2, 1} {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
+	gw.Submit(func() {
+		fn(1)
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
-
-	tEnd := time.Now()
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 4.0 {
-		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
-	}
 }
 
 func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
+	edone := make(chan struct{})
 	errResps := 0
-	gw := New()
+	errVals := 10
+
+	gw := New(Options{Logs: 0})
 
 	go func() {
-		for range gw.ErrChan {
+		m := make(map[string]int, errVals)
+		for err := range gw.ErrChan {
+			s := err.(error).Error()
+			m[s]++
+			if m[s] > 1 {
+				t.Errorf("Inconsistent value in error channel. Got %s more than once", s)
+			}
 			errResps++
 		}
+		edone <- struct{}{}
 	}()
 
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
+	fn := func(i int) error {
+		return fmt.Errorf("e%d", i)
 	}
 
-	tStart := time.Now()
-	for _, value := range []int{3, 2, 1} {
-		i := value
+	for val := 0; val < errVals; val++ {
+		i := val
 		gw.SubmitCheckError(func() error {
-			fn(i)
-			return fmt.Errorf("error")
+			return fn(i)
 		})
 	}
 	log.Println("Submitted!")
 
 	gw.Stop()
 
-	tEnd := time.Now()
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 4.0 {
-		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
+	if errResps != errVals {
+		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
 	}
 
-	if errResps != 3 {
-		t.Errorf("Expected 3 error responses, got %d", errResps)
-	}
+	<-edone
 }
 
 func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
+	edone := make(chan struct{})
+	rdone := make(chan struct{})
 	errResps := 0
+	errVals := 0
 	resResps := 0
+	resVals := 0
+	rNum := 20
 
-	gw := New()
+	gw := New(Options{Logs: 0})
 
 	go func() {
-		for range gw.ErrChan {
+		m := make(map[error]int, rNum)
+		for err := range gw.ErrChan {
+			m[err.(error)]++
+			if m[err.(error)] > 1 {
+				t.Errorf("Inconsistent value in error channel. Got %s more than once", err.Error())
+			}
 			errResps++
 		}
+		edone <- struct{}{}
 	}()
 
 	go func() {
-		for range gw.ResultChan {
+		m := make(map[string]int, rNum)
+		for val := range gw.ResultChan {
+			m[val.(string)]++
+			if m[val.(string)] > 1 {
+				t.Errorf("Inconsistent value in result channel. Got %s more than once", val)
+			}
 			resResps++
 		}
+		rdone <- struct{}{}
 	}()
 
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
+	fn := func(i int) (interface{}, error) {
+		if i%2 == 0 {
+			errVals++
+			return nil, fmt.Errorf("e%d", i)
+		}
+		resVals++
+		return fmt.Sprintf("v%d", i), nil
 	}
 
-	tStart := time.Now()
-	for _, value := range []int{3, 2, 1} {
-		i := value
+	for val := 0; val < rNum; val++ {
+		i := val
 		gw.SubmitCheckResult(func() (interface{}, error) {
-			fn(i)
-			if i%2 == 0 {
-				return nil, fmt.Errorf("error")
-			}
-			return "value", nil
+			return fn(i)
 		})
 	}
 	log.Println("Submitted!")
 
 	gw.Stop()
 
-	tEnd := time.Now()
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 4.0 {
-		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
+	if errResps != errVals {
+		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
 	}
 
-	if errResps != 1 {
-		t.Errorf("Expected 1 error responses, got %d", errResps)
+	if resResps != resVals {
+		t.Errorf("Expected %d result responses, got %d", resVals, resResps)
 	}
 
-	if resResps != 2 {
-		t.Errorf("Expected 2 result responses, got %d", resResps)
-	}
+	<-edone
+	<-rdone
 }
 
 func TestFunctionalityWithArgs(t *testing.T) {
-	tStart := time.Now()
-
-	opts := Options{Workers: 3, Logs: 1}
+	opts := Options{Workers: 3}
 	gw := New(opts)
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{3, 2, 1} {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
+	gw.Submit(func() {
+		fn(1)
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
-
-	tEnd := time.Now()
-
-	tDiff := tEnd.Sub(tStart)
-
-	if tDiff.Seconds() > 4.0 {
-		t.Errorf("Expect to complete in less than 4.0 seconds, took %f seconds", tDiff.Seconds())
-	}
 }
 
 func TestWorkerArg(t *testing.T) {
@@ -216,28 +198,15 @@ func TestBufferedQArg(t *testing.T) {
 	}
 }
 
-func TestLogsArg(t *testing.T) {
-	for _, logLvl := range []uint8{1, 2, 3, 0} {
-		opts := Options{Logs: logLvl}
-		_ = New(opts)
-	}
-}
-
 func TestSubmitAfterStop(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{2, 1} {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
+	gw.Submit(func() {
+		fn(1)
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
@@ -248,18 +217,12 @@ func TestSubmitCheckErrorAfterStop(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{2, 1} {
-		i := value
-		gw.SubmitCheckError(func() error {
-			fn(i)
-			return nil
-		})
-	}
+	gw.SubmitCheckError(func() error {
+		fn(1)
+		return nil
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
@@ -270,18 +233,12 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{2, 1} {
-		i := value
-		gw.SubmitCheckResult(func() (interface{}, error) {
-			fn(i)
-			return nil, nil
-		})
-	}
+	gw.SubmitCheckResult(func() (interface{}, error) {
+		fn(1)
+		return nil, nil
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
@@ -348,17 +305,11 @@ func TestStopAfterStop(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
-	for _, value := range []int{2, 1} {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
+	gw.Submit(func() {
+		fn(1)
+	})
 	log.Println("Submitted!")
 
 	gw.Stop()
@@ -369,9 +320,7 @@ func TestLongJobs(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
 		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
 	for _, value := range []int{12, 12} {
@@ -390,9 +339,7 @@ func TestTimerReset(t *testing.T) {
 	gw := New()
 
 	fn := func(i int) {
-		fmt.Println("Start Job", i)
 		time.Sleep(time.Duration(i) * time.Second)
-		fmt.Println("End Job", i)
 	}
 
 	for value := 0; value < 500; value++ {
@@ -409,6 +356,13 @@ func TestTimerReset(t *testing.T) {
 func TestDebug(t *testing.T) {
 	gw := New()
 	gw.debug()
+}
+
+func TestLogsArg(t *testing.T) {
+	for _, logLvl := range []uint8{1, 2, 3, 0} {
+		opts := Options{Logs: logLvl}
+		_ = New(opts)
+	}
 }
 
 /* ===================== Benchmarks ===================== */
