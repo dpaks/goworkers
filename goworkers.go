@@ -233,7 +233,7 @@ var mx sync.Mutex
 func (gw *GoWorkers) spawnWorker() {
 	defer mx.Unlock()
 	mx.Lock()
-	if gw.WorkerNum() < gw.maxWorkers { //&& (gw.JobNum() > gw.WorkerNum()) {
+	if gw.WorkerNum() < gw.maxWorkers && (gw.JobNum() > gw.WorkerNum()) {
 		go gw.startWorker()
 	}
 }
@@ -257,12 +257,14 @@ func (gw *GoWorkers) start() {
 		close(gw.ResultChan)
 	}()
 
+	// start 2 workers in advance
 	go gw.startWorker()
 	go gw.startWorker()
 
 	go func() {
 		for {
 			select {
+			// keep processing the queued jobs
 			case job, ok := <-gw.bufferedQ:
 				if !ok {
 					return
@@ -281,8 +283,10 @@ func (gw *GoWorkers) start() {
 			return
 		case job := <-gw.jobQ:
 			select {
+			// if possible, process the job without queueing
 			case gw.workerQ <- job:
 				go gw.spawnWorker()
+			// queue it if no workers are available
 			default:
 				gw.bufferedQ <- job
 			}
@@ -309,8 +313,6 @@ func (gw *GoWorkers) startWorker() {
 			job()
 			atomic.AddUint32(&gw.numJobs, ^uint32(0))
 		case <-timer.C:
-			// Should be ideally an atomic operation. However, an extra goroutine tradesoff
-			// better than using a mutex.
 			if gw.enoughWorkers() {
 				linfo.Println("Timed out - killing self!")
 				return
