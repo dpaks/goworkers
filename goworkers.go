@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -37,7 +38,6 @@ type GoWorkers struct {
 	numWorkers uint32
 	maxWorkers uint32
 	numJobs    uint32
-	qnumJobs   uint32
 	timeout    time.Duration
 	workerQ    chan func()
 	bufferedQ  chan func()
@@ -132,19 +132,9 @@ func (gw *GoWorkers) JobNum() uint32 {
 	return atomic.LoadUint32(&gw.numJobs)
 }
 
-// QueuedJobNum returns number of queued jobs
-func (gw *GoWorkers) QueuedJobNum() uint32 {
-	return atomic.LoadUint32(&gw.qnumJobs)
-}
-
 // WorkerNum returns number of active workers
 func (gw *GoWorkers) WorkerNum() uint32 {
 	return atomic.LoadUint32(&gw.numWorkers)
-}
-
-// MaxWorkerNum returns maximum number of workers
-func (gw *GoWorkers) MaxWorkerNum() uint32 {
-	return atomic.LoadUint32(&gw.maxWorkers)
 }
 
 // Submit is a non-blocking call with arg of type `func()`
@@ -153,7 +143,7 @@ func (gw *GoWorkers) Submit(job func()) {
 		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
 		return
 	}
-	atomic.AddUint32(&gw.qnumJobs, 1)
+	atomic.AddUint32(&gw.numJobs, uint32(1))
 	gw.jobQ <- func() { job() }
 }
 
@@ -166,7 +156,7 @@ func (gw *GoWorkers) SubmitCheckError(job func() error) {
 		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
 		return
 	}
-	atomic.AddUint32(&gw.qnumJobs, 1)
+	atomic.AddUint32(&gw.numJobs, uint32(1))
 	gw.jobQ <- func() {
 		err := job()
 		if err != nil {
@@ -189,7 +179,7 @@ func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
 		return
 	}
-	atomic.AddUint32(&gw.qnumJobs, 1)
+	atomic.AddUint32(&gw.numJobs, uint32(1))
 	gw.jobQ <- func() {
 		result, err := job()
 		if err != nil {
@@ -220,9 +210,9 @@ func (gw *GoWorkers) Stop() {
 	}
 	linfo.Println("Requesting shut down of the go workers!")
 	for {
-		if gw.JobNum() != 0 || gw.QueuedJobNum() != 0 {
-			ldebug.Printf("Cannot stop. Active Jobs = %d, Queued Jobs = %d\n", gw.JobNum(), gw.QueuedJobNum())
-			msleep(500)
+		if gw.JobNum() != 0 {
+			ldebug.Printf("Cannot stop. Active Jobs = %d\n", gw.JobNum())
+			msleep(1000)
 			continue
 		}
 		gw.terminate <- struct{}{}
@@ -234,8 +224,29 @@ func (gw *GoWorkers) Stop() {
 }
 
 func (gw *GoWorkers) debug() {
-	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n qnumJobs: %d\n timeout: %f\n stopping: %d\n***\n",
-		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.qnumJobs, gw.timeout.Seconds(), gw.stopping)
+	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n timeout: %f\n stopping: %d\n***\n",
+		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.timeout.Seconds(), gw.stopping)
+}
+
+var mx sync.Mutex
+
+func (gw *GoWorkers) spawnWorker() {
+	defer mx.Unlock()
+	mx.Lock()
+	if gw.WorkerNum() < gw.maxWorkers { //&& (gw.JobNum() > gw.WorkerNum()) {
+		go gw.startWorker()
+	}
+}
+
+var wx sync.Mutex
+
+func (gw *GoWorkers) enoughWorkers() bool {
+	defer wx.Unlock()
+	wx.Lock()
+	if gw.JobNum() < gw.WorkerNum() {
+		return true
+	}
+	return false
 }
 
 func (gw *GoWorkers) start() {
@@ -245,28 +256,36 @@ func (gw *GoWorkers) start() {
 		close(gw.ErrChan)
 		close(gw.ResultChan)
 	}()
+
+	go gw.startWorker()
+	go gw.startWorker()
+
+	go func() {
+		for {
+			select {
+			case job, ok := <-gw.bufferedQ:
+				if !ok {
+					return
+				}
+				go func() {
+					gw.spawnWorker()
+					gw.workerQ <- job
+				}()
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-gw.terminate:
 			return
 		case job := <-gw.jobQ:
-			gw.bufferedQ <- job
-		}
-
-		select {
-		case job := <-gw.bufferedQ:
-			go func(job func()) {
-				// Should be ideally an atomic operation. However, an extra goroutine tradesoff
-				// better than using a mutex.
-				if (gw.WorkerNum() < 2) || (gw.WorkerNum() < gw.MaxWorkerNum() && gw.QueuedJobNum() >= 1) {
-					go gw.startWorker()
-				}
-				gw.workerQ <- job
-				// Move job to active before removing from queue
-				// There shouldn't be a situation where the job is neither in active nor in queue state
-				atomic.AddUint32(&gw.numJobs, uint32(1))
-				atomic.AddUint32(&gw.qnumJobs, ^uint32(0))
-			}(job)
+			select {
+			case gw.workerQ <- job:
+				go gw.spawnWorker()
+			default:
+				gw.bufferedQ <- job
+			}
 		}
 	}
 }
@@ -292,7 +311,7 @@ func (gw *GoWorkers) startWorker() {
 		case <-timer.C:
 			// Should be ideally an atomic operation. However, an extra goroutine tradesoff
 			// better than using a mutex.
-			if (gw.JobNum() + gw.QueuedJobNum()) < gw.WorkerNum() {
+			if gw.enoughWorkers() {
 				linfo.Println("Timed out - killing self!")
 				return
 			}
