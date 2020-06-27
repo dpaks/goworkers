@@ -272,7 +272,7 @@ func main() {
 - [x] Add logs toggle
 - [x] When the goworkers machine is stopped, ensure that everything is cleanedup
 - [x] Add support for a 'results' channel
-- [ ] An option to auto-adjust worker pool size
+- [x] An option to auto-adjust worker pool size
 - [ ] Add total execution time
 
 ## FAQ
