@@ -3,7 +3,6 @@
 package goworkers
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -12,10 +11,6 @@ import (
 )
 
 const (
-	// Time after which a worker will be killed if inactive
-	defaultTimeout = 10
-	// Number of initial workers spawned if unspecified
-	defaultWorkers = 64
 	// The size of the buffered queue where jobs are queued up if no
 	// workers are available to process the incoming jobs, unless specified
 	defaultQSize = 128
@@ -29,16 +24,17 @@ var (
 	linfo  *log.Logger
 	ldebug *log.Logger
 	lerror *log.Logger
+	// enable logs
+	enableLog = false
 )
 
 // GoWorkers is a collection of worker goroutines.
 //
-// Idle workers will be timed out.
+// All workers will be killed after Stop() is called if their respective job finishes.
 type GoWorkers struct {
 	numWorkers uint32
 	maxWorkers uint32
 	numJobs    uint32
-	timeout    time.Duration
 	workerQ    chan func()
 	bufferedQ  chan func()
 	jobQ       chan func()
@@ -61,29 +57,19 @@ type GoWorkers struct {
 
 // Options configures the behaviour of worker pool.
 //
-// Timeout specifies the time after which an idle worker goroutine will be killed.
-// Default timeout is 10 seconds.
-//
 // Workers specifies the number of workers that will be spawned.
-// If unspecified, workers will be progressively spawned upto a maximum of 64.
-//
-// Logs accepts log levels - 0 (default), 1, 2.
-// 0: Only error logs.
-// 1: Only info and error logs.
-// 2: lerror, info and debug logs (badly verbose).
+// If unspecified or zero, workers will be spawned as per demand.
 //
 // QSize specifies the size of the queue that holds up incoming jobs.
 // Minimum value is 128.
 type Options struct {
-	Timeout uint32
 	Workers uint32
-	Logs    uint8
 	QSize   uint32
 }
 
 func init() {
-	linfo = log.New(ioutil.Discard, "(GoWorkers)INFO: ", log.LstdFlags|log.Lshortfile)
-	ldebug = log.New(ioutil.Discard, "(GoWorkers)DEBUG: ", log.LstdFlags|log.Lshortfile)
+	linfo = log.New(os.Stdout, "(GoWorkers)INFO: ", log.LstdFlags|log.Lshortfile)
+	ldebug = log.New(os.Stdout, "(GoWorkers)DEBUG: ", log.LstdFlags|log.Lshortfile)
 	lerror = log.New(os.Stderr, "(GoWorkers)ERROR: ", log.LstdFlags|log.Lshortfile)
 }
 
@@ -99,22 +85,9 @@ func New(args ...Options) *GoWorkers {
 		ResultChan: make(chan interface{}, outputChanSize),
 	}
 
-	gw.maxWorkers = defaultWorkers
-	gw.timeout = time.Second * defaultTimeout
 	gw.bufferedQ = make(chan func(), defaultQSize)
 	if len(args) == 1 {
-		if args[0].Workers > defaultWorkers {
-			gw.maxWorkers = args[0].Workers
-		}
-		if args[0].Timeout > defaultTimeout {
-			gw.timeout = time.Second * time.Duration(args[0].Timeout)
-		}
-		if args[0].Logs == 1 {
-			linfo.SetOutput(os.Stdout)
-		} else if args[0].Logs == 2 {
-			linfo.SetOutput(os.Stdout)
-			ldebug.SetOutput(os.Stdout)
-		}
+		gw.maxWorkers = args[0].Workers
 		if args[0].QSize > defaultQSize {
 			gw.bufferedQ = make(chan func(), args[0].QSize)
 		}
@@ -138,7 +111,9 @@ func (gw *GoWorkers) WorkerNum() uint32 {
 // Submit is a non-blocking call with arg of type `func()`
 func (gw *GoWorkers) Submit(job func()) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		if enableLog {
+			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -151,7 +126,9 @@ func (gw *GoWorkers) Submit(job func()) {
 // Use ErrChan buffered channel to read error, if any.
 func (gw *GoWorkers) SubmitCheckError(job func() error) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		if enableLog {
+			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -174,7 +151,9 @@ func (gw *GoWorkers) SubmitCheckError(job func() error) {
 // For a job, either of error or output would be sent if available.
 func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		if enableLog {
+			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
+		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -206,23 +185,29 @@ func (gw *GoWorkers) Stop() {
 		linfo.Println("Stop already triggered")
 		return
 	}
-	linfo.Println("Requesting shut down of the go workers!")
+	if enableLog {
+		linfo.Println("Requesting shut down of the go workers!")
+	}
 	for {
 		if gw.JobNum() != 0 {
-			ldebug.Printf("Cannot stop. Active Jobs = %d\n", gw.JobNum())
+			if enableLog {
+				ldebug.Printf("Cannot stop. Active Jobs = %d\n", gw.JobNum())
+			}
 			msleep(1000)
 			continue
 		}
-		// close the input channel so that start() will exit
+		// close the input channel
 		close(gw.jobQ)
 		break
 	}
-	linfo.Println("Successfully shut the go workers!")
+	if enableLog {
+		linfo.Println("Successfully shut the go workers!")
+	}
 }
 
 func (gw *GoWorkers) debug() {
-	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n timeout: %f\n stopping: %d\n***\n",
-		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.timeout.Seconds(), gw.stopping)
+	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n stopping: %d\n***\n",
+		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.stopping)
 }
 
 var mx sync.Mutex
@@ -230,20 +215,9 @@ var mx sync.Mutex
 func (gw *GoWorkers) spawnWorker() {
 	defer mx.Unlock()
 	mx.Lock()
-	if gw.WorkerNum() < gw.maxWorkers && (gw.JobNum() > gw.WorkerNum()) {
+	if ((gw.maxWorkers == 0) || (gw.WorkerNum() < gw.maxWorkers)) && (gw.JobNum() > gw.WorkerNum()) {
 		go gw.startWorker()
 	}
-}
-
-var wx sync.Mutex
-
-func (gw *GoWorkers) enoughWorkers() bool {
-	defer wx.Unlock()
-	wx.Lock()
-	if gw.JobNum() < gw.WorkerNum() {
-		return true
-	}
-	return false
 }
 
 func (gw *GoWorkers) start() {
@@ -295,27 +269,18 @@ func (gw *GoWorkers) start() {
 func (gw *GoWorkers) startWorker() {
 	defer func() {
 		atomic.AddUint32(&gw.numWorkers, ^uint32(0))
-		linfo.Println("Stopped idle worker. Worker count =", gw.numWorkers)
+		if enableLog {
+			linfo.Println("Stopped idle worker. Worker count =", gw.numWorkers)
+		}
 	}()
 
 	atomic.AddUint32(&gw.numWorkers, 1)
-	linfo.Println("Started worker. Worker count =", gw.numWorkers)
-	timer := time.NewTimer(gw.timeout)
+	if enableLog {
+		linfo.Println("Started worker. Worker count =", gw.numWorkers)
+	}
 
-	for {
-		select {
-		case job, ok := <-gw.workerQ:
-			if !ok {
-				return
-			}
-			job()
-			atomic.AddUint32(&gw.numJobs, ^uint32(0))
-		case <-timer.C:
-			if gw.enoughWorkers() {
-				linfo.Println("Timed out - killing self!")
-				return
-			}
-			timer.Reset(gw.timeout)
-		}
+	for job := range gw.workerQ {
+		job()
+		atomic.AddUint32(&gw.numJobs, ^uint32(0))
 	}
 }

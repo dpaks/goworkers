@@ -2,6 +2,7 @@ package goworkers
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 	errResps := 0
 	errVals := 10
 
-	gw := New(Options{Logs: 0})
+	gw := New()
 
 	go func() {
 		m := make(map[string]int, errVals)
@@ -71,7 +72,7 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	resVals := 0
 	rNum := 20
 
-	gw := New(Options{Logs: 0})
+	gw := New()
 
 	go func() {
 		m := make(map[error]int, rNum)
@@ -148,8 +149,9 @@ func TestWorkerArg(t *testing.T) {
 		Given    uint32
 		Expected uint32
 	}{
-		{defaultWorkers - 1, defaultWorkers},
-		{defaultWorkers + 1, defaultWorkers + 1},
+		{1, 1},
+		{2, 2},
+		{0, 0},
 	}
 
 	for _, table := range tables {
@@ -158,26 +160,6 @@ func TestWorkerArg(t *testing.T) {
 
 		if gw.maxWorkers != table.Expected {
 			t.Errorf("Expected %d, Got %d", table.Expected, gw.maxWorkers)
-		}
-	}
-}
-
-func TestTimeoutArg(t *testing.T) {
-	tables := []struct {
-		Given    uint32
-		Expected uint32
-	}{
-		{defaultTimeout, defaultTimeout},
-		{defaultTimeout - 1, defaultTimeout},
-		{defaultTimeout + 1, defaultTimeout + 1},
-	}
-
-	for _, table := range tables {
-		opts := Options{Timeout: table.Given}
-		gw := New(opts)
-
-		if gw.timeout != (time.Second * time.Duration(table.Expected)) {
-			t.Errorf("Expected %d, Got %d", table.Expected, gw.timeout)
 		}
 	}
 }
@@ -336,7 +318,7 @@ func TestLongJobs(t *testing.T) {
 }
 
 func TestTimerReset(t *testing.T) {
-	gw := New()
+	gw := New(Options{Workers: 1100})
 
 	fn := func(i int) {
 		time.Sleep(time.Duration(i) * time.Second)
@@ -344,7 +326,7 @@ func TestTimerReset(t *testing.T) {
 
 	for value := 0; value < 500; value++ {
 		gw.Submit(func() {
-			fn(2)
+			fn(5)
 		})
 	}
 	log.Println("Submitted!")
@@ -359,10 +341,18 @@ func TestDebug(t *testing.T) {
 }
 
 func TestLogsArg(t *testing.T) {
-	for _, logLvl := range []uint8{1, 2, 3, 0} {
-		opts := Options{Logs: logLvl}
-		_ = New(opts)
-	}
+	enableLog = true
+	linfo.SetOutput(ioutil.Discard)
+	lerror.SetOutput(ioutil.Discard)
+	ldebug.SetOutput(ioutil.Discard)
+	gw := New(Options{Workers: 500})
+	gw.Submit(func() { time.Sleep(15 * time.Second) })
+	gw.SubmitCheckError(func() error { return nil })
+	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
+	gw.Stop()
+	gw.Submit(func() {})
+	gw.SubmitCheckError(func() error { return nil })
+	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
 }
 
 /* ===================== Benchmarks ===================== */
@@ -437,7 +427,7 @@ func Example() {
 }
 
 func Example_withArgs() {
-	opts := Options{Workers: 3, Logs: 1, Timeout: 10, QSize: 256}
+	opts := Options{Workers: 3, QSize: 256}
 	gw := New(opts)
 
 	fn := func(i int) {
@@ -588,7 +578,7 @@ func ExampleNew_withoutArgs() {
 }
 
 func ExampleNew_withArgs() {
-	opts := Options{Workers: 3, Logs: 1, Timeout: 20, QSize: 256}
+	opts := Options{Workers: 3, QSize: 256}
 	_ = New(opts)
 }
 
