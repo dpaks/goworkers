@@ -85,7 +85,6 @@ func New(args ...Options) *GoWorkers {
 		ResultChan: make(chan interface{}, outputChanSize),
 	}
 
-	gw.maxWorkers = 0
 	gw.bufferedQ = make(chan func(), defaultQSize)
 	if len(args) == 1 {
 		gw.maxWorkers = args[0].Workers
