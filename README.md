@@ -6,7 +6,7 @@
 
 A minimal and efficient scalable workerpool implementation in Go using goroutines.
 
-**Note:** Do not user master branch. Use the latest release.
+**Note:** Do not use master branch. Use the latest release.
 
 [![GoDoc](https://godoc.org/github.com/dpaks/goworkers?status.svg)](https://godoc.org/github.com/dpaks/goworkers)
 
