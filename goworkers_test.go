@@ -2,8 +2,9 @@ package goworkers
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -17,7 +18,6 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 	gw.Submit(func() {
 		fn(1)
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 }
@@ -52,24 +52,25 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 			return fn(i)
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
+
+	<-edone
 
 	if errResps != errVals {
 		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
 	}
-
-	<-edone
 }
 
 func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	edone := make(chan struct{})
 	rdone := make(chan struct{})
-	errResps := 0
-	errVals := 0
-	resResps := 0
-	resVals := 0
+	var (
+		errResps int32
+		errVals  int32
+		resResps int32
+		resVals  int32
+	)
 	rNum := 20
 
 	gw := New()
@@ -100,10 +101,10 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 
 	fn := func(i int) (interface{}, error) {
 		if i%2 == 0 {
-			errVals++
+			atomic.AddInt32(&errVals, 1)
 			return nil, fmt.Errorf("e%d", i)
 		}
-		resVals++
+		atomic.AddInt32(&resVals, 1)
 		return fmt.Sprintf("v%d", i), nil
 	}
 
@@ -113,9 +114,11 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 			return fn(i)
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
+
+	<-edone
+	<-rdone
 
 	if errResps != errVals {
 		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
@@ -124,9 +127,164 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	if resResps != resVals {
 		t.Errorf("Expected %d result responses, got %d", resVals, resResps)
 	}
+}
 
-	<-edone
-	<-rdone
+func TestFunctionalityCheckMultiInstances(t *testing.T) {
+	// gw1
+	edonegw1 := make(chan struct{}, 1)
+	rdonegw1 := make(chan struct{}, 1)
+	var (
+		errRespsgw1 int32
+		errValsgw1  int32
+		resRespsgw1 int32
+		resValsgw1  int32
+	)
+	// gw2
+	edonegw2 := make(chan struct{}, 1)
+	rdonegw2 := make(chan struct{}, 1)
+	var (
+		errRespsgw2 int32
+		errValsgw2  int32
+		resRespsgw2 int32
+		resValsgw2  int32
+	)
+
+	rNum := 500
+
+	gw1 := New()
+	gw2 := New()
+
+	// gw1 output
+	go func() {
+		errList := []error{}
+		for err := range gw1.ErrChan {
+			errRespsgw1++
+			errList = append(errList, err.(error))
+		}
+
+		m := make(map[string]int, rNum)
+		for _, err := range errList {
+			serr := err.Error()
+			if !strings.HasPrefix(serr, "gw1") {
+				t.Errorf("Received %s from worker gw2, expected values only from gw1", serr)
+			}
+			m[serr]++
+			if m[serr] > 1 {
+				t.Errorf("Inconsistent value in error channel. Got %s more than once", serr)
+			}
+		}
+		edonegw1 <- struct{}{}
+	}()
+
+	go func() {
+		m := make(map[string]int, rNum)
+		for val := range gw1.ResultChan {
+			sval := val.(string)
+			if !strings.HasPrefix(sval, "gw1") {
+				t.Errorf("Received %s from worker gw2, expected values only from gw1", sval)
+			}
+			m[sval]++
+			if m[sval] > 1 {
+				t.Errorf("Inconsistent value in result channel. Got %s more than once", val)
+			}
+			resRespsgw1++
+		}
+		rdonegw1 <- struct{}{}
+	}()
+
+	// gw2 output
+	go func() {
+		m := make(map[string]int, rNum)
+		for err := range gw2.ErrChan {
+			serr := err.(error).Error()
+			if !strings.HasPrefix(serr, "gw2") {
+				t.Errorf("Received %s from worker gw1, expected values only from gw2", serr)
+			}
+			m[serr]++
+			if m[serr] > 1 {
+				t.Errorf("Inconsistent value in error channel. Got %s more than once", serr)
+			}
+			errRespsgw2++
+		}
+		edonegw2 <- struct{}{}
+	}()
+
+	go func() {
+		m := make(map[string]int, rNum)
+		for val := range gw2.ResultChan {
+			sval := val.(string)
+			if !strings.HasPrefix(sval, "gw2") {
+				t.Errorf("Received %s from worker gw1, expected values only from gw2", sval)
+			}
+			m[sval]++
+			if m[sval] > 1 {
+				t.Errorf("Inconsistent value in result channel. Got %s more than once", val)
+			}
+			resRespsgw2++
+		}
+		rdonegw2 <- struct{}{}
+	}()
+
+	// gw1 func()
+	fngw1 := func(i int) (interface{}, error) {
+		if i%2 == 0 {
+			atomic.AddInt32(&errValsgw1, 1)
+			return nil, fmt.Errorf("gw1e%d", i)
+		}
+		atomic.AddInt32(&resValsgw1, 1)
+		return fmt.Sprintf("gw1v%d", i), nil
+	}
+
+	// gw2 func()
+	fngw2 := func(i int) (interface{}, error) {
+		if i%2 == 0 {
+			atomic.AddInt32(&errValsgw2, 1)
+			return nil, fmt.Errorf("gw2e%d", i)
+		}
+		atomic.AddInt32(&resValsgw2, 1)
+		return fmt.Sprintf("gw2v%d", i), nil
+	}
+
+	// gw1 submission
+	for val := 0; val < rNum; val++ {
+		i := val
+		gw1.SubmitCheckResult(func() (interface{}, error) {
+			return fngw1(i)
+		})
+	}
+
+	// gw2 submission
+	for val := 0; val < rNum; val++ {
+		i := val
+		gw2.SubmitCheckResult(func() (interface{}, error) {
+			return fngw2(i)
+		})
+	}
+
+	gw1.Stop()
+	gw2.Stop()
+
+	<-edonegw1
+	<-rdonegw1
+
+	<-edonegw2
+	<-rdonegw2
+
+	if errRespsgw1 != errValsgw1 {
+		t.Errorf("Expected %d error responses, got %d", errValsgw1, errRespsgw1)
+	}
+
+	if resRespsgw1 != resValsgw1 {
+		t.Errorf("Expected %d result responses, got %d", resValsgw1, resRespsgw1)
+	}
+
+	if errRespsgw2 != errValsgw2 {
+		t.Errorf("Expected %d error responses, got %d", errValsgw2, errRespsgw2)
+	}
+
+	if resRespsgw2 != resValsgw2 {
+		t.Errorf("Expected %d result responses, got %d", resValsgw2, resRespsgw2)
+	}
 }
 
 func TestFunctionalityWithArgs(t *testing.T) {
@@ -139,7 +297,6 @@ func TestFunctionalityWithArgs(t *testing.T) {
 	gw.Submit(func() {
 		fn(1)
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 }
@@ -189,7 +346,6 @@ func TestSubmitAfterStop(t *testing.T) {
 	gw.Submit(func() {
 		fn(1)
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.Submit(func() {})
@@ -205,7 +361,6 @@ func TestSubmitCheckErrorAfterStop(t *testing.T) {
 		fn(1)
 		return nil
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.SubmitCheckError(func() error { return nil })
@@ -221,7 +376,6 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 		fn(1)
 		return nil, nil
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
@@ -261,7 +415,6 @@ func TestSubmitCheckErrorUnreadChan(t *testing.T) {
 			return fmt.Errorf("error")
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
 }
@@ -278,7 +431,6 @@ func TestSubmitCheckResultUnreadChan(t *testing.T) {
 			return nil, fmt.Errorf("error")
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
 }
@@ -292,7 +444,6 @@ func TestStopAfterStop(t *testing.T) {
 	gw.Submit(func() {
 		fn(1)
 	})
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.Stop()
@@ -311,7 +462,6 @@ func TestLongJobs(t *testing.T) {
 			fn(i)
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.Stop()
@@ -329,30 +479,9 @@ func TestTimerReset(t *testing.T) {
 			fn(5)
 		})
 	}
-	log.Println("Submitted!")
 
 	gw.Stop()
 	gw.Stop()
-}
-
-func TestDebug(t *testing.T) {
-	gw := New()
-	gw.debug()
-}
-
-func TestLogsArg(t *testing.T) {
-	enableLog = true
-	linfo.SetOutput(ioutil.Discard)
-	lerror.SetOutput(ioutil.Discard)
-	ldebug.SetOutput(ioutil.Discard)
-	gw := New(Options{Workers: 500})
-	gw.Submit(func() { time.Sleep(15 * time.Second) })
-	gw.SubmitCheckError(func() error { return nil })
-	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
-	gw.Stop()
-	gw.Submit(func() {})
-	gw.SubmitCheckError(func() error { return nil })
-	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
 }
 
 /* ===================== Benchmarks ===================== */
