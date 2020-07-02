@@ -2,7 +2,6 @@ package goworkers
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"strings"
 	"sync/atomic"
@@ -56,11 +55,11 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 
 	gw.Stop()
 
+	<-edone
+
 	if errResps != errVals {
 		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
 	}
-
-	<-edone
 }
 
 func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
@@ -118,6 +117,9 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 
 	gw.Stop()
 
+	<-edone
+	<-rdone
+
 	if errResps != errVals {
 		t.Errorf("Expected %d error responses, got %d", errVals, errResps)
 	}
@@ -125,15 +127,12 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 	if resResps != resVals {
 		t.Errorf("Expected %d result responses, got %d", resVals, resResps)
 	}
-
-	<-edone
-	<-rdone
 }
 
 func TestFunctionalityCheckMultiInstances(t *testing.T) {
 	// gw1
-	edonegw1 := make(chan struct{})
-	rdonegw1 := make(chan struct{})
+	edonegw1 := make(chan struct{}, 1)
+	rdonegw1 := make(chan struct{}, 1)
 	var (
 		errRespsgw1 int32
 		errValsgw1  int32
@@ -141,8 +140,8 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 		resValsgw1  int32
 	)
 	// gw2
-	edonegw2 := make(chan struct{})
-	rdonegw2 := make(chan struct{})
+	edonegw2 := make(chan struct{}, 1)
+	rdonegw2 := make(chan struct{}, 1)
 	var (
 		errRespsgw2 int32
 		errValsgw2  int32
@@ -157,9 +156,15 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 
 	// gw1 output
 	go func() {
-		m := make(map[string]int, rNum)
+		errList := []error{}
 		for err := range gw1.ErrChan {
-			serr := err.(error).Error()
+			errRespsgw1++
+			errList = append(errList, err.(error))
+		}
+
+		m := make(map[string]int, rNum)
+		for _, err := range errList {
+			serr := err.Error()
 			if !strings.HasPrefix(serr, "gw1") {
 				t.Errorf("Received %s from worker gw2, expected values only from gw1", serr)
 			}
@@ -167,7 +172,6 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 			if m[serr] > 1 {
 				t.Errorf("Inconsistent value in error channel. Got %s more than once", serr)
 			}
-			errRespsgw1++
 		}
 		edonegw1 <- struct{}{}
 	}()
@@ -260,6 +264,12 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 	gw1.Stop()
 	gw2.Stop()
 
+	<-edonegw1
+	<-rdonegw1
+
+	<-edonegw2
+	<-rdonegw2
+
 	if errRespsgw1 != errValsgw1 {
 		t.Errorf("Expected %d error responses, got %d", errValsgw1, errRespsgw1)
 	}
@@ -275,12 +285,6 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 	if resRespsgw2 != resValsgw2 {
 		t.Errorf("Expected %d result responses, got %d", resValsgw2, resRespsgw2)
 	}
-
-	<-edonegw1
-	<-rdonegw1
-
-	<-edonegw2
-	<-rdonegw2
 }
 
 func TestFunctionalityWithArgs(t *testing.T) {
@@ -478,26 +482,6 @@ func TestTimerReset(t *testing.T) {
 
 	gw.Stop()
 	gw.Stop()
-}
-
-func TestDebug(t *testing.T) {
-	gw := New()
-	gw.debug()
-}
-
-func TestLogsArg(t *testing.T) {
-	enableLog = true
-	linfo.SetOutput(ioutil.Discard)
-	lerror.SetOutput(ioutil.Discard)
-	ldebug.SetOutput(ioutil.Discard)
-	gw := New(Options{Workers: 500})
-	gw.Submit(func() { time.Sleep(15 * time.Second) })
-	gw.SubmitCheckError(func() error { return nil })
-	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
-	gw.Stop()
-	gw.Submit(func() {})
-	gw.SubmitCheckError(func() error { return nil })
-	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
 }
 
 /* ===================== Benchmarks ===================== */

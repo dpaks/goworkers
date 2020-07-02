@@ -3,11 +3,8 @@
 package goworkers
 
 import (
-	"log"
-	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 const (
@@ -17,15 +14,6 @@ const (
 	// A comfortable size for the buffered output channel such that chances
 	// for a slow receiver to miss updates are minute
 	outputChanSize = 100
-)
-
-var (
-	// Package level loggers
-	linfo  *log.Logger
-	ldebug *log.Logger
-	lerror *log.Logger
-	// enable logs
-	enableLog = false
 )
 
 // GoWorkers is a collection of worker goroutines.
@@ -67,12 +55,6 @@ type Options struct {
 	QSize   uint32
 }
 
-func init() {
-	linfo = log.New(os.Stdout, "(GoWorkers)INFO: ", log.LstdFlags|log.Lshortfile)
-	ldebug = log.New(os.Stdout, "(GoWorkers)DEBUG: ", log.LstdFlags|log.Lshortfile)
-	lerror = log.New(os.Stderr, "(GoWorkers)ERROR: ", log.LstdFlags|log.Lshortfile)
-}
-
 // New creates a new worker pool.
 //
 // Accepts optional Options{} argument.
@@ -111,9 +93,6 @@ func (gw *GoWorkers) WorkerNum() uint32 {
 // Submit is a non-blocking call with arg of type `func()`
 func (gw *GoWorkers) Submit(job func()) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		if enableLog {
-			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
-		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -126,9 +105,6 @@ func (gw *GoWorkers) Submit(job func()) {
 // Use ErrChan buffered channel to read error, if any.
 func (gw *GoWorkers) SubmitCheckError(job func() error) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		if enableLog {
-			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
-		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -151,9 +127,6 @@ func (gw *GoWorkers) SubmitCheckError(job func() error) {
 // For a job, either of error or output would be sent if available.
 func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 	if atomic.LoadInt32(&gw.stopping) == 1 {
-		if enableLog {
-			lerror.Println("Cannot accept jobs - Shutting down the go workers!")
-		}
 		return
 	}
 	atomic.AddUint32(&gw.numJobs, uint32(1))
@@ -173,41 +146,17 @@ func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 	}
 }
 
-func msleep(n int) {
-	time.Sleep(time.Duration(n) * time.Millisecond)
-}
-
 // Stop gracefully waits for jobs to finish running.
 //
 // This is a blocking call and returns when all the active and queued jobs are finished.
 func (gw *GoWorkers) Stop() {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
-		linfo.Println("Stop already triggered")
 		return
 	}
-	if enableLog {
-		linfo.Println("Requesting shut down of the go workers!")
+	for gw.numJobs != 0 {
 	}
-	for {
-		if gw.JobNum() != 0 {
-			if enableLog {
-				ldebug.Printf("Cannot stop. Active Jobs = %d\n", gw.JobNum())
-			}
-			msleep(1000)
-			continue
-		}
-		// close the input channel
-		close(gw.jobQ)
-		break
-	}
-	if enableLog {
-		linfo.Println("Successfully shut the go workers!")
-	}
-}
-
-func (gw *GoWorkers) debug() {
-	ldebug.Printf("\n***\n numWorkers: %d \n maxWorkers: %d\n numJobs: %d\n stopping: %d\n***\n",
-		gw.numWorkers, gw.maxWorkers, gw.numJobs, gw.stopping)
+	// close the input channel
+	close(gw.jobQ)
 }
 
 var mx sync.Mutex
@@ -269,15 +218,9 @@ func (gw *GoWorkers) start() {
 func (gw *GoWorkers) startWorker() {
 	defer func() {
 		atomic.AddUint32(&gw.numWorkers, ^uint32(0))
-		if enableLog {
-			linfo.Println("Stopped idle worker. Worker count =", gw.numWorkers)
-		}
 	}()
 
 	atomic.AddUint32(&gw.numWorkers, 1)
-	if enableLog {
-		linfo.Println("Started worker. Worker count =", gw.numWorkers)
-	}
 
 	for job := range gw.workerQ {
 		job()
