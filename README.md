@@ -149,10 +149,10 @@ func main() {
     tEnd := time.Now()
     tDiff := tEnd.Sub(tStart)
 
-    log.Println("Time taken to execute 500 jobs that were 5 seconds long is", tDiff.Seconds())
+    log.Println("Time taken to execute 500 jobs that were 5 seconds long is only", tDiff.Seconds(), "seconds!")
 }
 ```
-**Output:** 2020/07/03 20:03:01 Time taken to execute 500 jobs that were 5 seconds long is 5.001186599
+**Output:** 2020/07/03 20:03:01 Time taken to execute 500 jobs that were 5 seconds long is only 5.001186599 seconds!
 
 ###### To Receive Error from Job
 ```go
