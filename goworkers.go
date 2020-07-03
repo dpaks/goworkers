@@ -228,11 +228,6 @@ func (gw *GoWorkers) startWorker() {
 	for job := range gw.workerQ {
 		job()
 		if (atomic.AddUint32(&gw.numJobs, ^uint32(0)) == 0) && (atomic.LoadInt32(&gw.stopping) == 1) {
-			/*
-				select {
-				case gw.done <- struct{}{}:
-				default:
-				}*/
 			gw.done <- struct{}{}
 		}
 	}
