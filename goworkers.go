@@ -27,6 +27,7 @@ type GoWorkers struct {
 	bufferedQ  chan func()
 	jobQ       chan func()
 	stopping   int32
+	done       chan struct{}
 	// ErrChan is a safe buffered output channel of size 100 on which error
 	// returned by a job can be caught, if any. The channel will be closed
 	// after Stop() returns. Valid only for SubmitCheckError() and SubmitCheckResult().
@@ -65,6 +66,7 @@ func New(args ...Options) *GoWorkers {
 		jobQ:       make(chan func()),
 		ErrChan:    make(chan error, outputChanSize),
 		ResultChan: make(chan interface{}, outputChanSize),
+		done:       make(chan struct{}),
 	}
 
 	gw.bufferedQ = make(chan func(), defaultQSize)
@@ -153,7 +155,8 @@ func (gw *GoWorkers) Stop() {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
 		return
 	}
-	for gw.numJobs != 0 {
+	if gw.JobNum() != 0 {
+		<-gw.done
 	}
 	// close the input channel
 	close(gw.jobQ)
@@ -224,6 +227,8 @@ func (gw *GoWorkers) startWorker() {
 
 	for job := range gw.workerQ {
 		job()
-		atomic.AddUint32(&gw.numJobs, ^uint32(0))
+		if (atomic.AddUint32(&gw.numJobs, ^uint32(0)) == 0) && (atomic.LoadInt32(&gw.stopping) == 1) {
+			gw.done <- struct{}{}
+		}
 	}
 }

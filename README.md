@@ -16,7 +16,7 @@ A minimal and efficient scalable workerpool implementation in Go using goroutine
   - [Basic](#basic)
   - [With Arguments](#with-arguments)
   - [Without Arguments](#without-arguments)
-  - [Benchmark](#benchmark)
+  - [How Fast?](#benchmark)
   - [Return Error from Job](#to-receive-error-from-job)
   - [Return Output and Error from Job](#to-receive-output-and-error-from-job)
 - [TODO](#todo)
@@ -123,42 +123,36 @@ func main() {
 package main
 
 import (
-	"fmt"
-	"log"
-	"time"
+    "log"
+    "time"
 
-	"github.com/dpaks/goworkers"
+    "github.com/dpaks/goworkers"
 )
 
 func main() {
-	tStart := time.Now()
+    tStart := time.Now()
 
-	opts := goworkers.Options{Workers: 500}
-	gw := goworkers.New(opts)
+    gw := goworkers.New()
 
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
+    fn := func() {
+        time.Sleep(time.Duration(5) * time.Second)
+    }
 
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
+    for value := 500; value > 0; value-- {
+        gw.Submit(func() {
+            fn()
+        })
+    }
 
-	gw.Stop()
+    gw.Stop()
 
-	tEnd := time.Now()
-	tDiff := tEnd.Sub(tStart)
+    tEnd := time.Now()
+    tDiff := tEnd.Sub(tStart)
 
-	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
+    log.Println("Time taken to execute 500 jobs that were 5 seconds long is only", tDiff.Seconds(), "seconds!")
 }
 ```
-**Output:** Time taken to execute 500 jobs that are 5 seconds long is 5.01778295
+**Output:** 2020/07/03 20:03:01 Time taken to execute 500 jobs that were 5 seconds long is only 5.001186599 seconds!
 
 ###### To Receive Error from Job
 ```go
@@ -273,8 +267,7 @@ func main() {
 - [x] When the goworkers machine is stopped, ensure that everything is cleanedup
 - [x] Add support for a 'results' channel
 - [x] An option to auto-adjust worker pool size
-- [ ] Share workers across goworkers instances, anonymously
-- [ ] If sharing is implemented, introduce timeout
+- [ ] Introduce timeout
 
 ## FAQ
 
