@@ -273,8 +273,7 @@ func main() {
 - [x] When the goworkers machine is stopped, ensure that everything is cleanedup
 - [x] Add support for a 'results' channel
 - [x] An option to auto-adjust worker pool size
-- [ ] Share workers across goworkers instances, anonymously
-- [ ] If sharing is implemented, introduce timeout
+- [ ] Introduce timeout
 
 ## FAQ
 

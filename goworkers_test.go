@@ -351,6 +351,21 @@ func TestSubmitAfterStop(t *testing.T) {
 	gw.Submit(func() {})
 }
 
+func TestStopAfterDelay(t *testing.T) {
+	gw := New()
+
+	fn := func(i int) {
+	}
+
+	gw.Submit(func() {
+		fn(1)
+	})
+
+	for gw.JobNum() != 0 {
+	}
+	gw.Stop()
+}
+
 func TestSubmitCheckErrorAfterStop(t *testing.T) {
 	gw := New()
 
@@ -464,7 +479,6 @@ func TestLongJobs(t *testing.T) {
 	}
 
 	gw.Stop()
-	gw.Stop()
 }
 
 func TestTimerReset(t *testing.T) {
@@ -480,7 +494,6 @@ func TestTimerReset(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
 	gw.Stop()
 }
 
