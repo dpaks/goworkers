@@ -123,42 +123,36 @@ func main() {
 package main
 
 import (
-	"fmt"
-	"log"
-	"time"
+    "log"
+    "time"
 
-	"github.com/dpaks/goworkers"
+    "github.com/dpaks/goworkers"
 )
 
 func main() {
-	tStart := time.Now()
+    tStart := time.Now()
 
-	opts := goworkers.Options{Workers: 500}
-	gw := goworkers.New(opts)
+    gw := goworkers.New()
 
-	fn := func(i int) {
-		fmt.Println("Start Job", i)
-		time.Sleep(time.Duration(5) * time.Second)
-		fmt.Println("End Job", i)
-	}
+    fn := func() {
+        time.Sleep(time.Duration(5) * time.Second)
+    }
 
-	for value := 500; value > 0; value-- {
-		i := value
-		gw.Submit(func() {
-			fn(i)
-		})
-	}
-	log.Println("Submitted!")
+    for value := 500; value > 0; value-- {
+        gw.Submit(func() {
+            fn()
+        })
+    }
 
-	gw.Stop()
+    gw.Stop()
 
-	tEnd := time.Now()
-	tDiff := tEnd.Sub(tStart)
+    tEnd := time.Now()
+    tDiff := tEnd.Sub(tStart)
 
-	log.Println("Time taken to execute 500 jobs that are 5 seconds long is", tDiff.Seconds())
+    log.Println("Time taken to execute 500 jobs that were 5 seconds long is", tDiff.Seconds())
 }
 ```
-**Output:** Time taken to execute 500 jobs that are 5 seconds long is 5.01778295
+**Output:** 2020/07/03 20:03:01 Time taken to execute 500 jobs that were 5 seconds long is 5.001186599
 
 ###### To Receive Error from Job
 ```go
