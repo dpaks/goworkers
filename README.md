@@ -16,7 +16,7 @@ A minimal and efficient scalable workerpool implementation in Go using goroutine
   - [Basic](#basic)
   - [With Arguments](#with-arguments)
   - [Without Arguments](#without-arguments)
-  - [Benchmark](#benchmark)
+  - [How Fast?](#benchmark)
   - [Return Error from Job](#to-receive-error-from-job)
   - [Return Output and Error from Job](#to-receive-output-and-error-from-job)
 - [TODO](#todo)
