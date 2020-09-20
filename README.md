@@ -2,7 +2,7 @@
 [![CircleCI](https://circleci.com/gh/dpaks/goworkers.svg?style=shield)](https://app.circleci.com/pipelines/github/dpaks/goworkers)
 [![Codecov](https://codecov.io/gh/dpaks/goworkers/branch/master/graph/badge.svg)](https://codecov.io/gh/dpaks/goworkers)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpaks/goworkers)](https://goreportcard.com/report/github.com/dpaks/goworkers)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/dpaks/goworkers/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/dpaks/goworkers?color=blue)](https://github.com/dpaks/goworkers/blob/master/LICENSE)
 
 A minimal and efficient scalable workerpool implementation in Go using goroutines.
 
