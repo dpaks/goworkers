@@ -194,8 +194,7 @@ func (gw *GoWorkers) start() {
 		close(gw.ResultChan)
 	}()
 
-	// start 2 workers in advance
-	go gw.startWorker()
+	// start a worker in advance
 	go gw.startWorker()
 
 	go func() {
