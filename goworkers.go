@@ -155,13 +155,23 @@ func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 // Stop gracefully waits for jobs to finish running.
 //
 // This is a blocking call and returns when all the active and queued jobs are finished.
-func (gw *GoWorkers) Stop() {
+// If wait is true, Stop() waits until the result and error channels are emptied.
+// Setting wait to true ensures that you can read all values from result and error channels before your
+// parent program exits.
+func (gw *GoWorkers) Stop(wait bool) {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
 		return
 	}
 	if gw.JobNum() != 0 {
 		<-gw.done
 	}
+
+	if wait {
+		for len(gw.ResultChan)|len(gw.ErrChan) == 0 {
+			break
+		}
+	}
+
 	// close the input channel
 	close(gw.jobQ)
 }
@@ -184,8 +194,7 @@ func (gw *GoWorkers) start() {
 		close(gw.ResultChan)
 	}()
 
-	// start 2 workers in advance
-	go gw.startWorker()
+	// start a worker in advance
 	go gw.startWorker()
 
 	go func() {

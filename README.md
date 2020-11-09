@@ -46,7 +46,7 @@ func main() {
 	})
 
 	// wait till your job finishes
-	gw.Stop()
+	gw.Stop(false)
 }
 ```
 
@@ -81,7 +81,7 @@ func main() {
 	}
 	log.Println("Submitted!")
 	
-	gw.Stop()
+	gw.Stop(false)
 }
 ```
 
@@ -114,7 +114,7 @@ func main() {
 	}
 	log.Println("Submitted!")
 	
-	gw.Stop()
+	gw.Stop(false)
 }
 ```
 
@@ -144,7 +144,7 @@ func main() {
         })
     }
 
-    gw.Stop()
+    gw.Stop(false)
 
     tEnd := time.Now()
     tDiff := tEnd.Sub(tStart)
@@ -195,7 +195,10 @@ func main() {
     log.Println("Submitted!")
 
     // Wait for jobs to finish
-    gw.Stop()
+    // Here, wait flag is set to true. Setting wait to true ensures that
+    // the output channels are read from completely.
+    // Stop(true) exits only when the error channel is completely read from.
+    gw.Stop(true)
 }
 ```
 
@@ -226,11 +229,21 @@ func main() {
         for {
             select {
             // Error channel provides errors from job, if any
-            case err := <-gw.ErrChan:
+            case err, ok := <-gw.ErrChan:
+                // The error channel is closed when the workers are done with their tasks.
+                // When the channel is closed, ok is set to false
+                if !ok {
+                    return
+                }
                 fmt.Printf("Error: %s\n", err.Error())
             // Result channel provides output from job, if any
             // It will be of type interface{}
-            case res := <-gw.ResultChan:
+            case res, ok := <-gw.ResultChan:
+                // The result channel is closed when the workers are done with their tasks.
+                // When the channel is closed, ok is set to false
+                if !ok {
+                    return
+                }
                 fmt.Printf("Type: %T, Value: %+v\n", res, res)
             }
         }
@@ -258,7 +271,10 @@ func main() {
     log.Println("Submitted!")
 
     // Wait for jobs to finish
-    gw.Stop()
+    // Here, wait flag is set to true. Setting wait to true ensures that
+    // the output channels are read from completely.
+    // Stop(true) exits only when both the result and the error channels are completely read from.
+    gw.Stop(true)
 }
 ```
 
