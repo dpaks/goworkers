@@ -23,7 +23,7 @@ func TestFunctionalityWithoutArgs(t *testing.T) {
 		fn(1)
 	})
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
@@ -57,7 +57,7 @@ func TestFunctionalityCheckErrorWithoutArgs(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(true)
 
 	<-edone
 
@@ -119,7 +119,7 @@ func TestFunctionalityCheckResultWithoutArgs(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(true)
 
 	<-edone
 	<-rdone
@@ -265,8 +265,8 @@ func TestFunctionalityCheckMultiInstances(t *testing.T) {
 		})
 	}
 
-	gw1.Stop()
-	gw2.Stop()
+	gw1.Stop(true)
+	gw2.Stop(true)
 
 	<-edonegw1
 	<-rdonegw1
@@ -302,7 +302,7 @@ func TestFunctionalityWithArgs(t *testing.T) {
 		fn(1)
 	})
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestWorkerArg(t *testing.T) {
@@ -351,7 +351,7 @@ func TestSubmitAfterStop(t *testing.T) {
 		fn(1)
 	})
 
-	gw.Stop()
+	gw.Stop(false)
 	gw.Submit(func() {})
 }
 
@@ -367,7 +367,7 @@ func TestStopAfterDelay(t *testing.T) {
 
 	for gw.JobNum() != 0 {
 	}
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestSubmitCheckErrorAfterStop(t *testing.T) {
@@ -381,7 +381,7 @@ func TestSubmitCheckErrorAfterStop(t *testing.T) {
 		return nil
 	})
 
-	gw.Stop()
+	gw.Stop(false)
 	gw.SubmitCheckError(func() error { return nil })
 }
 
@@ -396,13 +396,40 @@ func TestSubmitCheckResultAfterStop(t *testing.T) {
 		return nil, nil
 	})
 
-	gw.Stop()
+	gw.Stop(false)
+	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
+}
+
+func TestSubmitCheckResultAfterStopWait(t *testing.T) {
+	gw := New()
+
+	go func() {
+		for {
+			select {
+			case _, ok := <-gw.ResultChan:
+				if !ok {
+					return
+				}
+			case <-gw.ErrChan:
+			}
+		}
+	}()
+
+	fn := func(i int) {
+	}
+
+	gw.SubmitCheckResult(func() (interface{}, error) {
+		fn(1)
+		return nil, nil
+	})
+
+	gw.Stop(true)
 	gw.SubmitCheckResult(func() (interface{}, error) { return nil, nil })
 }
 
 func TestSubmitCheckErrorNotSendNilToErrChan(t *testing.T) {
 	gw := New()
-	defer gw.Stop()
+	defer gw.Stop(true)
 
 	done := make(chan struct{})
 	job := func() error {
@@ -435,7 +462,7 @@ func TestSubmitCheckErrorUnreadChan(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestSubmitCheckResultUnreadChan(t *testing.T) {
@@ -451,7 +478,7 @@ func TestSubmitCheckResultUnreadChan(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestStopAfterStop(t *testing.T) {
@@ -464,8 +491,8 @@ func TestStopAfterStop(t *testing.T) {
 		fn(1)
 	})
 
-	gw.Stop()
-	gw.Stop()
+	gw.Stop(false)
+	gw.Stop(false)
 }
 
 func TestLongJobs(t *testing.T) {
@@ -482,7 +509,7 @@ func TestLongJobs(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func TestTimerReset(t *testing.T) {
@@ -498,7 +525,7 @@ func TestTimerReset(t *testing.T) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 /* ===================== Benchmarks ===================== */
@@ -510,7 +537,7 @@ func BenchmarkWithoutArgs(b *testing.B) {
 		gw.Submit(func() {})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func BenchmarkWithArgs(b *testing.B) {
@@ -521,7 +548,7 @@ func BenchmarkWithArgs(b *testing.B) {
 		gw.Submit(func() {})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func BenchmarkWithArgsError(b *testing.B) {
@@ -534,7 +561,7 @@ func BenchmarkWithArgsError(b *testing.B) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func BenchmarkWithArgsResult(b *testing.B) {
@@ -547,7 +574,7 @@ func BenchmarkWithArgsResult(b *testing.B) {
 		})
 	}
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 /* ===================== Examples ===================== */
@@ -569,7 +596,7 @@ func Example() {
 
 	log.Println("Submitted!")
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func Example_withArgs() {
@@ -590,7 +617,7 @@ func Example_withArgs() {
 	}
 	log.Println("Submitted!")
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func Example_simple() {
@@ -606,7 +633,7 @@ func Example_simple() {
 
 	log.Println("Submitted!")
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func Example_benchmark() {
@@ -629,7 +656,7 @@ func Example_benchmark() {
 	}
 	log.Println("Submitted!")
 
-	gw.Stop()
+	gw.Stop(false)
 
 	tEnd := time.Now()
 	tDiff := tEnd.Sub(tStart)
@@ -666,7 +693,10 @@ func Example_errorChannel() {
 	log.Println("Submitted!")
 
 	// Wait for jobs to finish
-	gw.Stop()
+	// Here, wait flag is set to true. Setting wait to true ensures that
+	// the output channels are read from completely.
+	// Stop(true) exits only when the error channel is completely read from.
+	gw.Stop(true)
 }
 
 func Example_outputChannel() {
@@ -684,11 +714,21 @@ func Example_outputChannel() {
 		for {
 			select {
 			// Error channel provides errors from job, if any
-			case err := <-gw.ErrChan:
+			case err, ok := <-gw.ErrChan:
+				// The error channel is closed when the workers are done with their tasks.
+				// When the channel is closed, ok is set to false
+				if !ok {
+					return
+				}
 				fmt.Printf("Error: %s\n", err.Error())
 			// Result channel provides output from job, if any
 			// It will be of type interface{}
-			case res := <-gw.ResultChan:
+			case res, ok := <-gw.ResultChan:
+				// The result channel is closed when the workers are done with their tasks.
+				// When the channel is closed, ok is set to false
+				if !ok {
+					return
+				}
 				fmt.Printf("Type: %T, Value: %+v\n", res, res)
 			}
 		}
@@ -716,7 +756,10 @@ func Example_outputChannel() {
 	log.Println("Submitted!")
 
 	// Wait for jobs to finish
-	gw.Stop()
+	// Here, wait flag is set to true. Setting wait to true ensures that
+	// the output channels are read from completely.
+	// Stop(true) exits only when both the result and the error channels are completely read from.
+	gw.Stop(true)
 }
 
 func ExampleNew_withoutArgs() {
@@ -735,7 +778,7 @@ func ExampleGoWorkers_Submit() {
 		fmt.Println("Hello, how are you?")
 	})
 
-	gw.Stop()
+	gw.Stop(false)
 }
 
 func ExampleGoWorkers_SubmitCheckError() {
@@ -746,7 +789,7 @@ func ExampleGoWorkers_SubmitCheckError() {
 		return fmt.Errorf("This is an error message")
 	})
 
-	gw.Stop()
+	gw.Stop(true)
 }
 
 func ExampleGoWorkers_SubmitCheckResult() {
@@ -757,5 +800,5 @@ func ExampleGoWorkers_SubmitCheckResult() {
 		return fmt.Sprintf("This is an output message"), nil
 	})
 
-	gw.Stop()
+	gw.Stop(true)
 }
