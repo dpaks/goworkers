@@ -195,9 +195,9 @@ func main() {
     log.Println("Submitted!")
 
     // Wait for jobs to finish
-	// Here, wait flag is set to true. Setting wait to true ensures that
-	// the output channels are read from completely.
-	// Stop(true) exits only when the error channel is completely read from.
+    // Here, wait flag is set to true. Setting wait to true ensures that
+    // the output channels are read from completely.
+    // Stop(true) exits only when the error channel is completely read from.
     gw.Stop(true)
 }
 ```
@@ -271,9 +271,9 @@ func main() {
     log.Println("Submitted!")
 
     // Wait for jobs to finish
-	// Here, wait flag is set to true. Setting wait to true ensures that
-	// the output channels are read from completely.
-	// Stop(true) exits only when both the result and the error channels are completely read from.
+    // Here, wait flag is set to true. Setting wait to true ensures that
+    // the output channels are read from completely.
+    // Stop(true) exits only when both the result and the error channels are completely read from.
     gw.Stop(true)
 }
 ```
