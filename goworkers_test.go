@@ -1,3 +1,7 @@
+/*
+Copyright 2020 Deepak S<deepaks@outlook.in>
+*/
+
 package goworkers
 
 import (

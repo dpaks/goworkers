@@ -1,3 +1,7 @@
+/*
+Copyright 2020 Deepak S<deepaks@outlook.in>
+*/
+
 // Package goworkers implements a simple, flexible and lightweight
 // goroutine worker pool implementation.
 package goworkers
