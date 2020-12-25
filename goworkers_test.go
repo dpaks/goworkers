@@ -370,6 +370,63 @@ func TestStopAfterDelay(t *testing.T) {
 	gw.Stop(false)
 }
 
+func TestWait(t *testing.T) {
+	gw := New()
+
+	fn := func() {
+		time.Sleep(1 * time.Second)
+	}
+
+	for i := 0; i < 100; i++ {
+		gw.Submit(func() {
+			fn()
+		})
+	}
+
+	if gw.JobNum() == 0 {
+		t.Errorf("Number of jobs must be greater than 0")
+	}
+
+	gw.Wait(false)
+
+	if gw.JobNum() != 0 {
+		t.Errorf("Number of jobs should be 0. Got %d", gw.JobNum())
+	}
+
+	for i := 0; i < 100; i++ {
+		gw.Submit(func() {
+			fn()
+		})
+	}
+
+	if gw.JobNum() == 0 {
+		t.Errorf("Number of jobs must be greater than 0")
+	}
+
+	gw.Wait(true)
+
+	if gw.JobNum() != 0 {
+		t.Errorf("Number of jobs should be 0. Got %d", gw.JobNum())
+	}
+
+	gw.Stop(false)
+}
+
+func TestWaitAfterWait(t *testing.T) {
+	gw := New()
+	defer gw.Stop(false)
+
+	fn := func(i int) {
+	}
+
+	gw.Submit(func() {
+		fn(1)
+	})
+
+	go gw.Wait(false)
+	gw.Wait(false)
+}
+
 func TestSubmitCheckErrorAfterStop(t *testing.T) {
 	gw := New()
 
@@ -801,4 +858,21 @@ func ExampleGoWorkers_SubmitCheckResult() {
 	})
 
 	gw.Stop(true)
+}
+
+func ExampleGoWorkers_Wait() {
+	gw := New()
+	defer gw.Stop(false)
+
+	gw.Submit(func() {
+		fmt.Println("Hello, how are you?")
+	})
+
+	gw.Wait(false)
+
+	gw.Submit(func() {
+		fmt.Println("I'm good, thank you!")
+	})
+
+	gw.Wait(false)
 }

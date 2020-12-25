@@ -152,12 +152,41 @@ func (gw *GoWorkers) SubmitCheckResult(job func() (interface{}, error)) {
 	}
 }
 
-// Stop gracefully waits for jobs to finish running.
+// Wait waits for the jobs to finish running.
 //
 // This is a blocking call and returns when all the active and queued jobs are finished.
-// If wait is true, Stop() waits until the result and error channels are emptied.
-// Setting wait to true ensures that you can read all values from result and error channels before your
-// parent program exits.
+// If 'wait' argument is set true, Wait() waits until the result and the error channels are emptied.
+// Setting 'wait' argument to true ensures that you can read all the values from the result and
+// the error channels before this function unblocks.
+// Jobs cannot be submitted until this function returns. If any, will be discarded.
+func (gw *GoWorkers) Wait(wait bool) {
+	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
+		return
+	}
+
+	for {
+		if gw.JobNum() == 0 {
+			break
+		}
+	}
+
+	if wait {
+		for {
+			if len(gw.ResultChan)|len(gw.ErrChan) == 0 {
+				break
+			}
+		}
+	}
+
+	atomic.StoreInt32(&gw.stopping, 0)
+}
+
+// Stop gracefully waits for the jobs to finish running and releases the associated resources.
+//
+// This is a blocking call and returns when all the active and queued jobs are finished.
+// If wait is true, Stop() waits until the result and the error channels are emptied.
+// Setting wait to true ensures that you can read all the values from the result and the
+// error channels before your parent program exits.
 func (gw *GoWorkers) Stop(wait bool) {
 	if !atomic.CompareAndSwapInt32(&gw.stopping, 0, 1) {
 		return
@@ -167,8 +196,10 @@ func (gw *GoWorkers) Stop(wait bool) {
 	}
 
 	if wait {
-		for len(gw.ResultChan)|len(gw.ErrChan) == 0 {
-			break
+		for {
+			if len(gw.ResultChan)|len(gw.ErrChan) == 0 {
+				break
+			}
 		}
 	}
 
